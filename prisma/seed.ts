@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/prisma';
+import { PrismaClient } from '../src/generated/prisma/index.js';
 import 'dotenv/config';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -16,6 +16,23 @@ async function main() {
         { name: 'Clothing', iconPack: 'shirt', defaultTheme: 'rose' },
         { name: 'Electronics', iconPack: 'smartphone', defaultTheme: 'slate' },
     ];
+
+    console.log('Seeding features...');
+    const featuresList = [
+        { key: 'INVENTORY', description: 'Stock tracking and warehouse management' },
+        { key: 'POS_BASIC', description: 'Point of Sale billing engine' },
+        { key: 'TABLE_MANAGEMENT', description: 'Floor plans and table status' },
+        { key: 'BATCH_TRACKING', description: 'FIFO batch and expiry tracking' },
+        { key: 'EXPIRY_TRACKING', description: 'Track item expiry dates' },
+    ];
+
+    for (const f of featuresList) {
+        await prisma.feature.upsert({
+            where: { key: f.key },
+            update: { description: f.description },
+            create: f,
+        });
+    }
 
     for (const ind of industries) {
         await prisma.industry.upsert({

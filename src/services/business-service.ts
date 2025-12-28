@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import type { Prisma } from '../generated/prisma';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { logAudit } from '../lib/audit';
@@ -27,7 +28,7 @@ export class BusinessService {
 
         const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-        return await prisma.$transaction(async (tx) => {
+        return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // 2. Create Business
             const business = await tx.business.create({
                 data: {
@@ -72,6 +73,26 @@ export class BusinessService {
                         enabled: true, // Auto-enable all for now, can be restricted later
                     }
                 })
+            }
+
+            // 6. Create default Chart of Accounts
+            const defaultAccounts = [
+                { name: 'Cash', type: 'ASSET' },
+                { name: 'Bank', type: 'ASSET' },
+                { name: 'Accounts Receivable', type: 'ASSET' },
+                { name: 'Sales', type: 'INCOME' },
+                { name: 'Tax Payable', type: 'LIABILITY' },
+                { name: 'Cost of Goods Sold', type: 'EXPENSE' },
+                { name: 'Inventory', type: 'ASSET' },
+            ];
+
+            for (const acc of defaultAccounts) {
+                await tx.account.create({
+                    data: {
+                        businessId: business.id,
+                        ...acc
+                    }
+                });
             }
 
             // 6. Log the creation

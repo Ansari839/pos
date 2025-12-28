@@ -26,8 +26,12 @@ import {
   Warehouse,
   History,
   AlertTriangle,
-  MoveRight
+  MoveRight,
+  Monitor,
+  Calculator,
+  BookOpen
 } from "lucide-react";
+import { Terminal } from "@/components/terminal";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useBusinessConfig } from "@/hooks/use-business-config";
@@ -55,7 +59,9 @@ const THEME_COLORS: Record<string, string> = {
 
 export default function Home() {
   const [step, setStep] = useState<"SELECT_INDUSTRY" | "ONBOARDING" | "DASHBOARD">("SELECT_INDUSTRY");
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "INVENTORY" | "WAREHOUSES">("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "INVENTORY" | "WAREHOUSES" | "TERMINAL" | "ACCOUNTING">("OVERVIEW");
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [journals, setJournals] = useState<any[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
   const [selectedIndustry, setSelectedIndustry] = useState<any>(null);
   const [businessData, setBusinessData] = useState<any>(null);
@@ -76,7 +82,7 @@ export default function Home() {
 
   useEffect(() => {
     if (businessData?.business?.id) {
-      if (activeTab === "INVENTORY") {
+      if (activeTab === "INVENTORY" || activeTab === "TERMINAL") {
         fetch(`/api/items?businessId=${businessData.business.id}`)
           .then(res => res.json())
           .then(data => setItems(data));
@@ -327,7 +333,8 @@ export default function Home() {
             <NavItem icon={LayoutDashboard} label="Overview" active={activeTab === "OVERVIEW"} onClick={() => setActiveTab("OVERVIEW")} />
             {isFeatureEnabled("INVENTORY") && <NavItem icon={Boxes} label="Master Data" active={activeTab === "INVENTORY"} onClick={() => setActiveTab("INVENTORY")} />}
             {isFeatureEnabled("INVENTORY") && <NavItem icon={Warehouse} label="Inventory" active={activeTab === "WAREHOUSES"} onClick={() => setActiveTab("WAREHOUSES")} />}
-            {isFeatureEnabled("POS_BASIC") && <NavItem icon={FileText} label="Terminal" />}
+            {isFeatureEnabled("POS_BASIC") && <NavItem icon={Monitor} label="Terminal" active={activeTab === "TERMINAL"} onClick={() => setActiveTab("TERMINAL")} />}
+            <NavItem icon={Calculator} label="Accounting" active={activeTab === "ACCOUNTING"} onClick={() => setActiveTab("ACCOUNTING")} />
             {isFeatureEnabled("TABLE_MANAGEMENT") && <NavItem icon={Utensils} label="Floor Map" />}
             <NavItem icon={UsersIcon} label="Staff & Roles" />
           </nav>
@@ -383,7 +390,10 @@ export default function Home() {
                 <div className="relative z-10 flex flex-col h-full">
                   <h3 className="text-3xl font-extrabold tracking-tight mb-4 leading-tight">Terminal<br />Awaiting Input</h3>
                   <p className="text-zinc-400 dark:text-zinc-500 max-w-xs text-base mb-10">Scan barcode or select items from your catalog to begin a transaction.</p>
-                  <button className="mt-auto px-10 py-4 bg-white/10 dark:bg-black/10 rounded-2xl font-bold hover:bg-white/20 dark:hover:bg-black/20 transition-all w-fit">
+                  <button
+                    onClick={() => setActiveTab("TERMINAL")}
+                    className="mt-auto px-10 py-4 bg-white/10 dark:bg-black/10 rounded-2xl font-bold hover:bg-white/20 dark:hover:bg-black/20 transition-all w-fit"
+                  >
                     Open Terminal
                   </button>
                 </div>
@@ -487,7 +497,84 @@ export default function Home() {
               </div>
             </div>
           </main>
-        ) : (
+        ) : activeTab === "ACCOUNTING" ? (
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
+            <header className="p-16 pb-10 flex justify-between items-end">
+              <div>
+                <h1 className="text-5xl font-extrabold tracking-tighter dark:text-white mb-3">Accounting</h1>
+                <p className="text-zinc-400 font-medium">Double-entry ledger & Chart of Accounts</p>
+              </div>
+            </header>
+
+            <div className="flex-grow overflow-y-auto px-16 pb-16 space-y-12">
+              <section>
+                <h3 className="text-xl font-bold dark:text-white mb-6 flex items-center gap-2">
+                  <BookOpen size={20} className="text-zinc-400" /> Recent Journal Entries
+                </h3>
+                <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-100 dark:border-zinc-800 overflow-hidden shadow-sm">
+                  <table className="w-full text-left">
+                    <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-[10px] uppercase tracking-widest font-bold text-zinc-400">
+                      <tr>
+                        <th className="px-8 py-4">Date</th>
+                        <th className="px-8 py-4">Description</th>
+                        <th className="px-8 py-4">Account</th>
+                        <th className="px-8 py-4 text-right">Debit</th>
+                        <th className="px-8 py-4 text-right">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
+                      {journals.map(entry => (
+                        entry.lines.map((line: any, idx: number) => (
+                          <tr key={line.id} className="hover:bg-zinc-50/50 dark:hover:bg-white/[0.01]">
+                            <td className="px-8 py-4 text-xs font-medium text-zinc-400">
+                              {idx === 0 ? new Date(entry.createdAt).toLocaleDateString() : ''}
+                            </td>
+                            <td className="px-8 py-4">
+                              {idx === 0 ? <div className="font-bold text-sm dark:text-white">{entry.description}</div> : ''}
+                            </td>
+                            <td className="px-8 py-4">
+                              <div className="text-sm font-medium dark:text-zinc-300">{line.account.name}</div>
+                            </td>
+                            <td className="px-8 py-4 text-right text-sm font-bold dark:text-white">
+                              {parseFloat(line.debit) > 0 ? `$${parseFloat(line.debit).toFixed(2)}` : '-'}
+                            </td>
+                            <td className="px-8 py-4 text-right text-sm font-bold dark:text-white">
+                              {parseFloat(line.credit) > 0 ? `$${parseFloat(line.credit).toFixed(2)}` : '-'}
+                            </td>
+                          </tr>
+                        ))
+                      ))}
+                      {journals.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-20 text-center text-zinc-300 font-bold">No journal entries yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-bold dark:text-white mb-6">Chart of Accounts</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {['ASSET', 'LIABILITY', 'INCOME', 'EXPENSE'].map(type => (
+                    <div key={type} className="p-8 bg-white dark:bg-zinc-900 rounded-[2rem] border border-zinc-100 dark:border-zinc-800">
+                      <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4">{type}s</div>
+                      <div className="space-y-3">
+                        {accounts.filter(a => a.type === type).map(acc => (
+                          <div key={acc.id} className="flex justify-between items-center group">
+                            <span className="text-sm font-medium dark:text-zinc-300">{acc.name}</span>
+                            <div className="w-2 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 group-hover:bg-emerald-500 transition-colors" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </main>
+        ) : activeTab === "WAREHOUSES" ? (
           <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
             <header className="p-16 pb-10 flex justify-between items-end">
               <div>
@@ -581,6 +668,29 @@ export default function Home() {
                   </div>
                 )}
               </div>
+            </div>
+          </main>
+        ) : (
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700">
+            <header className="p-16 pb-10 flex justify-between items-center border-b border-zinc-100 dark:border-zinc-900">
+              <div>
+                <h1 className="text-4xl font-extrabold tracking-tighter dark:text-white">POS Terminal</h1>
+                <p className="text-zinc-400 text-sm">{selectedWarehouse?.name || 'Default Warehouse'}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-full text-[10px] font-black tracking-widest border border-emerald-100 dark:border-emerald-800">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  STATION ACTIVE
+                </div>
+              </div>
+            </header>
+            <div className="flex-grow p-8 overflow-hidden">
+              <Terminal
+                businessId={businessData.business.id}
+                userId={businessData.user.id}
+                warehouseId={selectedWarehouse?.id}
+                items={items}
+              />
             </div>
           </main>
         )}

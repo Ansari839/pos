@@ -33,6 +33,11 @@ model Business {
   stocks      Stock[]
   movements   StockMovement[]
   warehouses  Warehouse[]
+  sessions    PosSession[]
+  sales       Sale[]
+  accounts    Account[]
+  journalEntries JournalEntry[]
+  parties     Party[]
   auditLogs   AuditLog[]
 }
 
@@ -67,6 +72,8 @@ model User {
   role       Role       @relation(fields: [roleId], references: [id])
   
   warehouses UserWarehouse[]
+  sessions   PosSession[]
+  sales      Sale[]
   
   auditLogs  AuditLog[]
   
@@ -171,6 +178,7 @@ model Item {
   
   stocks             Stock[]
   movements          StockMovement[]
+  saleItems          SaleItem[]
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -298,6 +306,8 @@ model Warehouse {
   stocks      Stock[]
   movements   StockMovement[]
   users       UserWarehouse[]
+  sessions    PosSession[]
+  sales       Sale[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -314,6 +324,158 @@ model UserWarehouse {
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
 
   @@unique([userId, warehouseId])
+}
+
+model PosSession {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id])
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  status      String   @default("OPEN") // OPEN | CLOSED | HOLD
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+  
+  sales       Sale[]
+}
+
+model Sale {
+  id              String   @id @default(uuid())
+  invoiceNo       String   @unique
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id])
+  
+  sessionId       String?
+  session         PosSession? @relation(fields: [sessionId], references: [id])
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  warehouseId     String
+  warehouse       Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  subtotal        Decimal  @db.Decimal(18, 4)
+  taxTotal        Decimal  @db.Decimal(18, 4)
+  discountTotal   Decimal  @db.Decimal(18, 4)
+  total           Decimal  @db.Decimal(18, 4)
+  
+  status          String   @default("COMPLETED") // COMPLETED | CANCELLED | REFUNDED
+  
+  customerId      String?
+  customer        Party?      @relation(fields: [customerId], references: [id])
+  
+  items           SaleItem[]
+  payments        Payment[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SaleItem {
+  id              String   @id @default(uuid())
+  saleId          String
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  
+  quantity        Decimal  @db.Decimal(18, 4)
+  unitId          String
+  
+  unitPrice       Decimal  @db.Decimal(18, 4)
+  taxAmount       Decimal  @db.Decimal(18, 4)
+  discountAmount  Decimal  @db.Decimal(18, 4)
+  total           Decimal  @db.Decimal(18, 4)
+  
+  batchNo         String?
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  saleId          String
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  
+  method          String   // CASH | CARD | BANK | CREDIT
+  amount          Decimal  @db.Decimal(18, 4)
+  referenceNo     String?
+  
+  createdAt       DateTime @default(now())
+}
+
+model Account {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  name       String
+  type       String   // ASSET | LIABILITY | INCOME | EXPENSE | EQUITY
+  code       String?  // Optional account code
+  
+  journalLines JournalLine[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([businessId, name])
+}
+
+model JournalEntry {
+  id            String   @id @default(uuid())
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id])
+  date          DateTime @default(now())
+  referenceType String?  // POS | RETURN | MANUAL
+  referenceId   String?  // ID of the sale or other source
+  description   String?
+  
+  lines         JournalLine[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model JournalLine {
+  id             String       @id @default(uuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id])
+  
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  
+  debit          Decimal      @db.Decimal(18, 4) @default(0)
+  credit         Decimal      @db.Decimal(18, 4) @default(0)
+  
+  partyLedger    PartyLedger?
+}
+
+model Party {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  name       String
+  type       String   // CUSTOMER | SUPPLIER
+  email      String?
+  phone      String?
+  
+  ledgers    PartyLedger[]
+  sales      Sale[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, name, type])
+}
+
+model PartyLedger {
+  id            String      @id @default(uuid())
+  partyId       String
+  party         Party       @relation(fields: [partyId], references: [id])
+  
+  journalLineId String      @unique
+  journalLine   JournalLine @relation(fields: [journalLineId], references: [id])
+  
+  createdAt     DateTime    @default(now())
 }
 
 model AuditLog {
