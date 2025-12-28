@@ -23,9 +23,16 @@ const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClientSingleton | undefined;
 };
 
-export const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
+export let prisma = globalForPrisma.prisma ?? prismaClientSingleton();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// Detect stale client (missing models) and force reload in dev
+if (process.env.NODE_ENV !== 'production') {
+    if (prisma && !(prisma as any).purchase) {
+        console.log("🔄 Stale Prisma Client detected. Forcing re-instantiation...");
+        prisma = prismaClientSingleton();
+    }
+    globalForPrisma.prisma = prisma;
+}
 
 /* 
  * Audit Middleware / Extension Foundation
