@@ -32,7 +32,15 @@ import {
   BookOpen,
   Undo2,
   Wrench,
-  LogOut
+  LogOut,
+  Palette,
+  Zap,
+  Check,
+  TrendingUp,
+  DollarSign,
+  CreditCard,
+  TrendingDown,
+  Target
 } from "lucide-react";
 import { Terminal } from "@/components/terminal";
 import { clsx, type ClassValue } from "clsx";
@@ -47,16 +55,6 @@ import {
   TopItemsChart,
   FinancialPie
 } from "@/components/dashboard-charts";
-import {
-  TrendingUp,
-  TrendingDown,
-  Target,
-  Zap,
-  CreditCard,
-  DollarSign,
-  Palette,
-  Check
-} from "lucide-react";
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -110,6 +108,11 @@ export default function Home() {
   const [showDayModal, setShowDayModal] = useState(false);
   const [dayAction, setDayAction] = useState<"OPEN" | "CLOSE">("OPEN");
   const [submissionKeys, setSubmissionKeys] = useState<string[]>([""]);
+
+  // Admin Features (Team & Keys)
+  const [users, setUsers] = useState<any[]>([]);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [newKey, setNewKey] = useState<string | null>(null);
 
   // For Dashboard
   const { config, isFeatureEnabled, getRule, loading: configLoading } = useBusinessConfig(businessData?.business?.id || null);
@@ -200,6 +203,12 @@ export default function Home() {
       setIndustry(businessData.business.industry.name.toUpperCase() as IndustryType);
     }
   }, [businessData?.business?.industry?.name, setIndustry]);
+
+  useEffect(() => {
+    if (activeTab === "TEAM" && businessData?.business?.id) {
+      fetchUsers();
+    }
+  }, [activeTab]);
 
   const searchSale = async () => {
     if (!returnSearch) return;
@@ -296,6 +305,61 @@ export default function Home() {
         .then(data => setStock(data));
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUsers = () => {
+    fetch(`/api/users?businessId=${businessData.business.id}`)
+      .then(res => res.json())
+      .then(data => setUsers(data));
+  };
+
+  const handleAddUser = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...data,
+          businessId: businessData.business.id
+        })
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      alert("User added successfully!");
+      setShowUserModal(false);
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateKey = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/system/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: businessData.business.id,
+          userId: businessData.user.id,
+          operation: "DAY_OPEN" // Fixed field name
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setNewKey(data.key);
+    } catch (err: any) {
+      alert(err.message || "Failed to generate key");
     } finally {
       setLoading(false);
     }
@@ -1183,6 +1247,67 @@ export default function Home() {
               </div>
             </div>
           </main>
+        ) : activeTab === "TEAM" ? (
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
+            <header className="p-16 pb-10 flex justify-between items-end">
+              <div>
+                <h1 className="text-5xl font-extrabold tracking-tighter dark:text-white mb-3">Team Management</h1>
+                <p className="text-zinc-400 font-medium tracking-tight">Manage user access and roles (RBAC/ABAC)</p>
+              </div>
+              <button
+                onClick={() => setShowUserModal(true)}
+                className="px-10 py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-extrabold text-lg flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-2xl"
+              >
+                <Plus size={24} /> Add Team Member
+              </button>
+            </header>
+
+            <div className="flex-grow overflow-y-auto px-16 pb-16">
+              <div className="bg-white dark:bg-zinc-900 rounded-[3rem] border border-zinc-100 dark:border-zinc-800 overflow-hidden shadow-2xl">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50 dark:bg-zinc-800/20 text-zinc-400 text-[10px] font-bold uppercase tracking-[0.2em] text-left">
+                      <th className="px-10 py-6">Member</th>
+                      <th className="px-10 py-6">Role / Access</th>
+                      <th className="px-10 py-6">Status</th>
+                      <th className="px-10 py-6 text-right">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
+                    {users.map(u => (
+                      <tr key={u.id} className="group hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                        <td className="px-10 py-8">
+                          <div className="flex items-center gap-6">
+                            <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center font-black">
+                              {u.name?.charAt(0) || 'U'}
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-lg dark:text-white tracking-tight">{u.name}</div>
+                              <div className="text-xs text-zinc-400 mt-1">{u.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-10 py-8">
+                          <span className="px-4 py-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-[10px] font-black tracking-widest uppercase dark:text-zinc-300">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-10 py-8">
+                          <div className="flex items-center gap-2 text-emerald-500 text-[10px] font-black tracking-widest uppercase">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            ACTIVE
+                          </div>
+                        </td>
+                        <td className="px-10 py-8 text-right text-zinc-400 font-medium text-sm">
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </main>
         ) : activeTab === "SETTINGS" ? (
           <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700">
             <header className="p-16 pb-10 flex justify-between items-center bg-white dark:bg-zinc-900/50 backdrop-blur-xl border-b border-zinc-100 dark:border-zinc-800/50">
@@ -1234,24 +1359,46 @@ export default function Home() {
               </section>
 
               <section className="grid grid-cols-2 gap-10">
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-10 rounded-[3rem] shadow-xl">
-                  <h3 className="text-xl font-bold dark:text-white mb-6">Display Mode</h3>
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-12 rounded-[3rem] shadow-xl">
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-zinc-500">
+                      <Settings size={20} />
+                    </div>
+                    <h3 className="text-xl font-bold dark:text-white">Interface</h3>
+                  </div>
                   <button
                     onClick={toggleDark}
                     className="flex items-center gap-4 w-full p-6 bg-zinc-50 dark:bg-zinc-950 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all font-bold group"
                   >
                     <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform">
-                      {isDark ? icons.terminal && React.createElement(icons.terminal) : icons.dashboard && React.createElement(icons.dashboard)}
+                      {isDark ? <Monitor size={20} /> : <LayoutDashboard size={20} />}
                     </div>
                     {isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                   </button>
                 </div>
 
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-10 rounded-[3rem] shadow-xl flex flex-col justify-center">
-                  <h3 className="text-xl font-bold dark:text-white mb-6">Business Industry</h3>
-                  <div className="flex items-center gap-4 p-6 bg-primary/5 text-primary rounded-2xl font-black uppercase tracking-[0.2em] text-sm">
-                    {icons.main && React.createElement(icons.main, { size: 24 })}
-                    {industry} LOGIC ACTIVE
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-12 rounded-[3rem] shadow-xl">
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 bg-rose-100 dark:bg-rose-950/30 text-rose-500 rounded-xl">
+                      <Zap size={20} />
+                    </div>
+                    <h3 className="text-xl font-bold dark:text-white">Security & Access</h3>
+                  </div>
+                  <div className="space-y-6">
+                    <p className="text-sm text-zinc-400 font-medium">Generate authorized security keys for day opening/closing operations.</p>
+                    <button
+                      onClick={handleGenerateKey}
+                      disabled={loading}
+                      className="w-full py-5 bg-rose-500 text-white rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-98 transition-all shadow-lg shadow-rose-500/20"
+                    >
+                      {loading ? <RefreshCw className="animate-spin" /> : "Generate New Security Key"}
+                    </button>
+                    {newKey && (
+                      <div className="p-6 bg-zinc-50 dark:bg-zinc-950 rounded-2xl border-2 border-dashed border-rose-200 dark:border-rose-900/50 text-center animate-in zoom-in-95 duration-500">
+                        <div className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em] mb-2">Authenticated Key Copied</div>
+                        <div className="text-4xl font-black tracking-[0.3em] dark:text-white font-mono">{newKey}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -1457,6 +1604,67 @@ export default function Home() {
                   {dayAction === "OPEN" ? "OPEN BUSINESS DAY" : "CLOSE BUSINESS DAY"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showUserModal && (
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-10 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[4rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 animate-in zoom-in-95 duration-300">
+              <div className="p-16 pb-10 flex justify-between items-start">
+                <div>
+                  <div className="p-4 rounded-3xl w-fit mb-6 bg-primary/10 text-primary">
+                    <UsersIcon size={32} />
+                  </div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white mb-2">
+                    Add Team Member
+                  </h2>
+                  <p className="text-zinc-400 font-medium tracking-tight">Assign roles and permissions (RBAC)</p>
+                </div>
+                <button onClick={() => setShowUserModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleAddUser} className="p-16 pt-0 space-y-6">
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Full Name</label>
+                    <input name="name" required className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2" placeholder="e.g. Abdullah S." />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Email Address</label>
+                    <input name="email" type="email" required className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2" placeholder="user@poscore.com" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Password</label>
+                      <input name="password" type="password" required className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2" placeholder="••••••••" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Access Role</label>
+                      <select name="roleName" className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2">
+                        <option value="ADMIN">Administrator</option>
+                        <option value="CASHIER">Cashier / Staff</option>
+                        <option value="MANAGER">Store Manager</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl border border-zinc-100 dark:border-zinc-800 border-dashed mt-6">
+                  <p className="text-xs text-zinc-400 font-medium leading-relaxed italic">
+                    RBAC Active: Permissions will be assigned automatically based on the selected role.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-8 mt-8 bg-primary text-primary-foreground rounded-3xl font-black text-2xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-4"
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <CheckCircle2 size={32} />}
+                  CREATE MEMBER
+                </button>
+              </form>
             </div>
           </div>
         )}

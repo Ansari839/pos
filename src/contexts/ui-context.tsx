@@ -13,6 +13,7 @@ import {
     Monitor,
     Undo2,
     Calculator,
+    Users as UsersIcon,
     Laptop,
     HeartPulse,
     ShoppingBag,
@@ -75,6 +76,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
             items.push({ title: "Returns", route: "RETURNS", icon: Undo2 });
         }
 
+        items.push({ title: "Team", route: "TEAM", icon: UsersIcon }); // Always visible for now
         items.push({ title: "Accounting", route: "ACCOUNTING", icon: Calculator });
 
         return items;
