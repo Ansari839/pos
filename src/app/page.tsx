@@ -111,6 +111,7 @@ export default function Home() {
   const [submissionKeys, setSubmissionKeys] = useState<string[]>([""]);
 
   const [newKey, setNewKey] = useState<string | null>(null);
+  const [keyOp, setKeyOp] = useState("DAY_OPEN");
   const [users, setUsers] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
@@ -388,7 +389,7 @@ export default function Home() {
         body: JSON.stringify({
           businessId: businessData.business.id,
           userId: businessData.user.id,
-          operation: "DAY_OPEN" // Fixed field name
+          operation: keyOp
         })
       });
       const data = await res.json();
@@ -1519,6 +1520,22 @@ export default function Home() {
                   </div>
                   <div className="space-y-6">
                     <p className="text-sm text-zinc-400 font-medium">Generate authorized security keys for day opening/closing operations.</p>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {['DAY_OPEN', 'DAY_CLOSE', 'ADJUSTMENT_APPROVAL'].map((op) => (
+                        <button
+                          key={op}
+                          onClick={() => setKeyOp(op)}
+                          className={`px-4 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all border ${keyOp === op
+                              ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20'
+                              : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800 text-zinc-400 hover:border-rose-200'
+                            }`}
+                        >
+                          {op.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+
                     <button
                       onClick={handleGenerateKey}
                       disabled={loading}
