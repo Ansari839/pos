@@ -104,6 +104,12 @@ export default function Home() {
   const [showAdjModal, setShowAdjModal] = useState(false);
   const [adjData, setAdjData] = useState<any>({ itemId: "", warehouseId: "", quantity: 0, type: "OUT", reason: "Wastage" });
 
+  // Day Control State
+  const [isDayOpen, setIsDayOpen] = useState(true);
+  const [showDayModal, setShowDayModal] = useState(false);
+  const [dayAction, setDayAction] = useState<"OPEN" | "CLOSE">("OPEN");
+  const [submissionKeys, setSubmissionKeys] = useState<string[]>([""]);
+
   // For Dashboard
   const { config, isFeatureEnabled, getRule, loading: configLoading } = useBusinessConfig(businessData?.business?.id || null);
 
@@ -123,6 +129,14 @@ export default function Home() {
       .then((res) => res.json())
       .then((data) => setIndustries(data));
   }, []);
+
+  useEffect(() => {
+    if (businessData?.business?.id) {
+      fetch(`/api/system/day-status?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => setIsDayOpen(data.isOpen));
+    }
+  }, [businessData, activeTab]);
 
   useEffect(() => {
     if (businessData?.business?.id) {
@@ -499,7 +513,30 @@ export default function Home() {
             ))}
           </nav>
 
-          <div className="mt-auto pt-10">
+          <div className="mt-auto pt-10 space-y-4">
+            <div className={cn(
+              "p-6 rounded-2xl flex items-center justify-between border",
+              isDayOpen ? "bg-emerald-50/50 border-emerald-100" : "bg-rose-50/50 border-rose-100"
+            )}>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Day Status</span>
+                <span className={cn("text-xs font-bold", isDayOpen ? "text-emerald-600" : "text-rose-600")}>
+                  {isDayOpen ? "ACTIVE" : "CLOSED"}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setDayAction(isDayOpen ? "CLOSE" : "OPEN");
+                  setShowDayModal(true);
+                }}
+                className={cn(
+                  "p-2 rounded-lg transition-all",
+                  isDayOpen ? "text-emerald-600 bg-emerald-100" : "text-rose-600 bg-rose-100"
+                )}
+              >
+                <Zap size={16} />
+              </button>
+            </div>
             <NavItem
               icon={Settings}
               label="System Settings"
@@ -1125,7 +1162,27 @@ export default function Home() {
                 </div>
               </div>
             </header>
-            <div className="flex-grow p-8 overflow-hidden">
+            <div className="flex-grow p-8 overflow-hidden relative">
+              {!isDayOpen && (
+                <div className="absolute inset-0 z-50 bg-white/60 dark:bg-black/60 backdrop-blur-md flex flex-col items-center justify-center p-12 text-center animate-in fade-in duration-500">
+                  <div className="w-24 h-24 bg-rose-50 rounded-[2rem] flex items-center justify-center mb-8">
+                    <Zap size={48} className="text-rose-600" />
+                  </div>
+                  <h2 className="text-5xl font-black tracking-tighter dark:text-white mb-4">Business Day Closed</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400 text-lg max-w-md mx-auto mb-10 leading-relaxed italic">
+                    All terminal operations are locked until the business day is opened with authorized security keys.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setDayAction("OPEN");
+                      setShowDayModal(true);
+                    }}
+                    className="px-12 py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl hover:scale-105 transition-all shadow-2xl flex items-center gap-4"
+                  >
+                    <Zap size={24} /> OPEN THE DAY
+                  </button>
+                </div>
+              )}
               <Terminal
                 businessId={businessData.business.id}
                 userId={businessData.user.id}
@@ -1199,6 +1256,96 @@ export default function Home() {
                   className="w-full py-6 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-3 mt-4"
                 >
                   {loading ? <RefreshCw className="animate-spin" /> : <CheckCircle2 size={24} />} Apply Adjustment
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDayModal && (
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-10 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[4rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 animate-in zoom-in-95 duration-300">
+              <div className="p-16 pb-10 flex justify-between items-start">
+                <div>
+                  <div className={cn("p-4 rounded-3xl w-fit mb-6", dayAction === "OPEN" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600")}>
+                    <Zap size={32} />
+                  </div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white mb-2">
+                    Day {dayAction === "OPEN" ? "Opening" : "Closing"}
+                  </h2>
+                  <p className="text-zinc-400 font-medium tracking-tight">Security keys required to proceed</p>
+                </div>
+                <button onClick={() => setShowDayModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+
+              <div className="p-16 pt-0 space-y-10">
+                <div className="space-y-6">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest px-1">Approver Keys</label>
+                  {submissionKeys.map((k, i) => (
+                    <div key={i} className="relative group">
+                      <input
+                        value={k}
+                        onChange={(e) => {
+                          const newKeys = [...submissionKeys];
+                          newKeys[i] = e.target.value.toUpperCase();
+                          setSubmissionKeys(newKeys);
+                        }}
+                        placeholder={`KEY ${i + 1}`}
+                        className="w-full px-8 py-6 bg-zinc-50 dark:bg-zinc-950 border-none rounded-3xl font-black text-2xl tracking-widest dark:text-white outline-none focus:ring-4 ring-primary/20 transition-all placeholder:text-zinc-200"
+                        maxLength={8}
+                      />
+                      {i === submissionKeys.length - 1 && submissionKeys.length < 3 && (
+                        <button
+                          onClick={() => setSubmissionKeys([...submissionKeys, ""])}
+                          className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-primary hover:scale-110 transition-transform"
+                        >
+                          + Add Key
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-8 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl border border-zinc-100 dark:border-zinc-800 border-dashed">
+                  <p className="text-xs text-zinc-400 font-medium leading-relaxed">
+                    By submitting these keys, you confirm that the session totals have been verified and you are authorized to {dayAction.toLowerCase()} the business day.
+                  </p>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const res = await fetch("/api/system/day-control", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          businessId: businessData.business.id,
+                          userId: businessData.user.id,
+                          action: dayAction,
+                          keys: submissionKeys.filter(k => k.length > 0)
+                        })
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      setIsDayOpen(dayAction === "OPEN");
+                      setShowDayModal(false);
+                      setSubmissionKeys([""]);
+                      alert(`Day successfully ${dayAction === "OPEN" ? "opened" : "closed"}!`);
+                    } catch (err: any) {
+                      alert(err.message);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading || submissionKeys.every(k => k === "")}
+                  className={cn(
+                    "w-full py-8 text-white rounded-3xl font-black text-2xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-4",
+                    dayAction === "OPEN" ? "bg-emerald-500 shadow-emerald-500/20" : "bg-rose-500 shadow-rose-500/20"
+                  )}
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <CheckCircle2 size={32} />}
+                  {dayAction === "OPEN" ? "OPEN BUSINESS DAY" : "CLOSE BUSINESS DAY"}
                 </button>
               </div>
             </div>

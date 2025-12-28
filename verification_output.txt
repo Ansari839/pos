@@ -1,0 +1,22 @@
+[dotenv@17.2.3] injecting env (1) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+Database URL present: true
+🚀 Starting System Controls Verification...
+/home/abdullah/Nextks/pos/node_modules/pg-pool/index.js:45
+    Error.captureStackTrace(err)
+          ^
+
+Error: SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string
+    at /home/abdullah/Nextks/pos/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async PrismaPgAdapter.performIO (/home/abdullah/Nextks/pos/node_modules/@prisma/adapter-pg/dist/index.js:652:22)
+    at async PrismaPgAdapter.queryRaw (/home/abdullah/Nextks/pos/node_modules/@prisma/adapter-pg/dist/index.js:602:30)
+    at async /home/abdullah/Nextks/pos/src/generated/prisma/runtime/client.js:15:24331
+    at async fr (/home/abdullah/Nextks/pos/src/generated/prisma/runtime/client.js:15:24170)
+    at async e.interpretNode (/home/abdullah/Nextks/pos/src/generated/prisma/runtime/client.js:15:42277)
+    at async e.interpretNode (/home/abdullah/Nextks/pos/src/generated/prisma/runtime/client.js:15:42701)
+    at async e.interpretNode (/home/abdullah/Nextks/pos/src/generated/prisma/runtime/client.js:15:43875)
+    at async e.run (/home/abdullah/Nextks/pos/src/generated/prisma/runtime/client.js:15:41116) {
+  clientVersion: '7.2.0'
+}
+
+Node.js v24.12.0

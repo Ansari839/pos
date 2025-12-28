@@ -41,6 +41,59 @@ model Business {
   auditLogs   AuditLog[]
   saleReturns SaleReturn[]
   stockAdjustments StockAdjustment[]
+  dayControls DayControl[]
+  operationKeys OperationKey[]
+}
+
+model DayControl {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id])
+  
+  date        DateTime @default(now())
+  status      String   @default("OPEN") // OPEN | CLOSED
+  
+  openedById  String
+  openedBy    User     @relation("DayOpenedBy", fields: [openedById], references: [id])
+  
+  closedById  String?
+  closedBy    User?    @relation("DayClosedBy", fields: [closedById], references: [id])
+  
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([businessId, date])
+}
+
+model OperationKey {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id])
+  
+  operation   String   // DAY_OPEN | DAY_CLOSE | SHOW_RESULT | ADJUSTMENT_APPROVAL
+  key         String   @unique
+  used        Boolean  @default(false)
+  
+  assignedToId String
+  assignedTo   User     @relation(fields: [assignedToId], references: [id])
+  
+  approvals    Approval[]
+  
+  createdAt   DateTime @default(now())
+}
+
+model Approval {
+  id             String       @id @default(uuid())
+  operationKeyId String
+  operationKey   OperationKey @relation(fields: [operationKeyId], references: [id])
+  
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  
+  approvedAt     DateTime @default(now())
 }
 
 model Industry {
@@ -80,6 +133,11 @@ model User {
   auditLogs  AuditLog[]
   saleReturns SaleReturn[]
   stockAdjustments StockAdjustment[]
+  
+  openedDays DayControl[] @relation("DayOpenedBy")
+  closedDays DayControl[] @relation("DayClosedBy")
+  operationKeys OperationKey[]
+  approvals     Approval[]
   
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
