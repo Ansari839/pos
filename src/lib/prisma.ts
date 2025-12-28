@@ -7,7 +7,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma';
 
 const prismaClientSingleton = () => {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: 20, // Maximum number of clients in the pool
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    });
     const adapter = new PrismaPg(pool);
     return new PrismaClient({ adapter });
 };
