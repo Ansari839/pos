@@ -5,10 +5,129 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model Business {
+  id          String   @id @default(uuid())
+  name        String
+  industryId  String
+  industry    Industry @relation(fields: [industryId], references: [id])
+  themeConfig Json?    // Stores specific overrides like color choice
+  settings    Json?    // General settings (tax, currency, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  users       User[]
+  features    BusinessFeature[]
+  auditLogs   AuditLog[]
+}
+
+model Industry {
+  id           String     @id @default(uuid())
+  name         String     @unique
+  iconPack     String     // e.g. "lucide-restaurant"
+  defaultTheme String?    // Reference to a theme preference
+  
+  businesses   Business[]
+}
+
+model Theme {
+  id           String @id @default(uuid())
+  name         String @unique
+  primaryColor String // hex or tailwind class
+  mode         String // "light" | "dark"
+}
+
+model User {
+  id         String     @id @default(uuid())
+  email      String     @unique
+  name       String?
+  password   String
+  status     String     @default("ACTIVE") // ACTIVE, INACTIVE, INVITED
+  
+  businessId String
+  business   Business   @relation(fields: [businessId], references: [id])
+  
+  roleId     String
+  role       Role       @relation(fields: [roleId], references: [id])
+  
+  auditLogs  AuditLog[]
+  
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique // Admin, Manager, Cashier
+  
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id        String           @id @default(uuid())
+  module    String           // e.g. "inventory", "pos"
+  action    String           // e.g. "create", "read", "update", "delete"
+  
+  roles     RolePermission[]
+  
+  @@unique([module, action])
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  
+  @@unique([roleId, permissionId])
+}
+
+model Feature {
+  id          String            @id @default(uuid())
+  key         String            @unique // e.g. "loyalty_program"
+  description String?
+  
+  businesses  BusinessFeature[]
+}
+
+model BusinessFeature {
+  id         String   @id @default(uuid())
+  
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  
+  featureId  String
+  feature    Feature  @relation(fields: [featureId], references: [id])
+  
+  enabled    Boolean  @default(false)
+  
+  @@unique([businessId, featureId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  
+  module     String
+  action     String
+  before     Json?
+  after      Json?
+  
+  timestamp  DateTime @default(now())
 }
