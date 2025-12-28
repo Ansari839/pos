@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
     } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 500 });
+        console.error("Day Control Error:", err);
+        const status = err.message.includes("invalid") || err.message.includes("used") ? 400 : 500;
+        return NextResponse.json({ error: err.message }, { status });
     }
 }

@@ -31,7 +31,8 @@ import {
   Calculator,
   BookOpen,
   Undo2,
-  Wrench
+  Wrench,
+  LogOut
 } from "lucide-react";
 import { Terminal } from "@/components/terminal";
 import { clsx, type ClassValue } from "clsx";
@@ -125,10 +126,34 @@ export default function Home() {
   });
 
   useEffect(() => {
+    // 1. Fetch Industries
     fetch("/api/industries")
       .then((res) => res.json())
       .then((data) => setIndustries(data));
+
+    // 2. Restore Session
+    const saved = localStorage.getItem("pos_session");
+    if (saved) {
+      try {
+        const session = JSON.parse(saved);
+        if (session.business && session.user) {
+          setBusinessData(session);
+          setStep("DASHBOARD");
+        }
+      } catch (e) {
+        console.error("Invalid session", e);
+      }
+    }
   }, []);
+
+  // Save Session
+  useEffect(() => {
+    if (businessData?.business?.id) {
+      localStorage.setItem("pos_session", JSON.stringify(businessData));
+    } else {
+      localStorage.removeItem("pos_session");
+    }
+  }, [businessData]);
 
   useEffect(() => {
     if (businessData?.business?.id) {
@@ -274,6 +299,12 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("pos_session");
+    setBusinessData(null);
+    setStep("LOGIN");
   };
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -614,6 +645,12 @@ export default function Home() {
               label="System Settings"
               active={activeTab === "SETTINGS"}
               onClick={() => setActiveTab("SETTINGS")}
+            />
+            <NavItem
+              icon={LogOut}
+              label="Log Out"
+              active={false}
+              onClick={handleLogout}
             />
           </div>
         </aside>
