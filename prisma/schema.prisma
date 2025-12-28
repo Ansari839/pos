@@ -25,16 +25,25 @@ model Business {
   
   users       User[]
   features    BusinessFeature[]
+  rules       BusinessRule[]
+  items       Item[]
+  categories  Category[]
+  units       Unit[]
+  taxes       Tax[]
+  stocks      Stock[]
+  movements   StockMovement[]
+  warehouses  Warehouse[]
   auditLogs   AuditLog[]
 }
 
 model Industry {
-  id           String     @id @default(uuid())
-  name         String     @unique
-  iconPack     String     // e.g. "lucide-restaurant"
-  defaultTheme String?    // Reference to a theme preference
+  id            String     @id @default(uuid())
+  name          String     @unique
+  iconPack      String     // e.g. "lucide-restaurant"
+  defaultTheme  String?    // Reference to a theme preference
+  defaultConfig Json?      // Default rules/features for this industry
   
-  businesses   Business[]
+  businesses    Business[]
 }
 
 model Theme {
@@ -56,6 +65,8 @@ model User {
   
   roleId     String
   role       Role       @relation(fields: [roleId], references: [id])
+  
+  warehouses UserWarehouse[]
   
   auditLogs  AuditLog[]
   
@@ -97,8 +108,24 @@ model Feature {
   id          String            @id @default(uuid())
   key         String            @unique // e.g. "loyalty_program"
   description String?
+  category    String?           // e.g. "POS", "INVENTORY"
   
   businesses  BusinessFeature[]
+}
+
+model BusinessRule {
+  id            String   @id @default(uuid())
+  
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id])
+  
+  ruleKey       String   // e.g. "discount.max_percent"
+  ruleValue     Json
+  scope         String   @default("GLOBAL") // POS, INVENTORY, etc.
+  
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([businessId, ruleKey])
 }
 
 model BusinessFeature {
@@ -113,6 +140,180 @@ model BusinessFeature {
   enabled    Boolean  @default(false)
   
   @@unique([businessId, featureId])
+}
+
+model Item {
+  id                 String   @id @default(uuid())
+  businessId         String
+  business           Business @relation(fields: [businessId], references: [id])
+  
+  name               String
+  code               String   // SKU / PLU
+  type               String   // PRODUCT | SERVICE
+  
+  categoryId         String?
+  category           Category? @relation(fields: [categoryId], references: [id])
+  
+  unitId             String?
+  unit               Unit?     @relation(fields: [unitId], references: [id])
+  
+  basePrice          Decimal  @db.Decimal(18, 4)
+  
+  taxId              String?
+  tax                Tax?      @relation(fields: [taxId], references: [id])
+  
+  trackStock         Boolean  @default(true)
+  trackBatch         Boolean  @default(false)
+  trackExpiry        Boolean  @default(false)
+  allowNegativeStock Boolean? // Business-level override
+  
+  isActive           Boolean  @default(true)
+  
+  stocks             Stock[]
+  movements          StockMovement[]
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([businessId, code])
+}
+
+model Category {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  name       String
+  
+  parentId   String?
+  parent     Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children   Category[] @relation("CategoryToCategory")
+  
+  items      Item[]
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, name])
+}
+
+model Unit {
+  id              String           @id @default(uuid())
+  businessId      String
+  business        Business         @relation(fields: [businessId], references: [id])
+  name            String
+  symbol          String
+  
+  items           Item[]
+  fromConversions UnitConversion[] @relation("FromUnit")
+  toConversions   UnitConversion[] @relation("ToUnit")
+
+  @@unique([businessId, name])
+}
+
+model UnitConversion {
+  id         String @id @default(uuid())
+  fromUnitId String
+  fromUnit   Unit   @relation("FromUnit", fields: [fromUnitId], references: [id])
+  
+  toUnitId   String
+  toUnit     Unit   @relation("ToUnit", fields: [toUnitId], references: [id])
+  
+  multiplier Decimal @db.Decimal(18, 8)
+}
+
+model Tax {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  name       String
+  rate       Decimal  @db.Decimal(18, 4)
+  type       String   // INCLUSIVE | EXCLUSIVE
+  
+  items      Item[]
+
+  @@unique([businessId, name])
+}
+
+model Stock {
+  id                String   @id @default(uuid())
+  businessId        String
+  business          Business @relation(fields: [businessId], references: [id])
+  
+  warehouseId       String
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  itemId            String
+  item              Item     @relation(fields: [itemId], references: [id])
+  
+  quantityBaseUnit  Decimal  @db.Decimal(18, 4)
+  
+  batches           StockBatch[]
+  
+  updatedAt         DateTime @updatedAt
+
+  @@unique([warehouseId, itemId])
+}
+
+model StockBatch {
+  id                String   @id @default(uuid())
+  stockId           String
+  stock             Stock    @relation(fields: [stockId], references: [id])
+  
+  batchNo           String?
+  expiryDate        DateTime?
+  quantityBaseUnit  Decimal  @db.Decimal(18, 4)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model StockMovement {
+  id                String   @id @default(uuid())
+  businessId        String
+  business          Business @relation(fields: [businessId], references: [id])
+  
+  itemId            String
+  item              Item     @relation(fields: [itemId], references: [id])
+  
+  warehouseId       String
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  type              String   // IN | OUT | ADJUSTMENT | RETURN
+  referenceType     String   // POS | PURCHASE | ADJUSTMENT
+  referenceId       String?
+  
+  quantityBaseUnit  Decimal  @db.Decimal(18, 4)
+  
+  createdBy         String
+  createdAt         DateTime @default(now())
+}
+
+model Warehouse {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id])
+  name        String
+  isDefault   Boolean  @default(false)
+  
+  stocks      Stock[]
+  movements   StockMovement[]
+  users       UserWarehouse[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([businessId, name])
+}
+
+model UserWarehouse {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([userId, warehouseId])
 }
 
 model AuditLog {
