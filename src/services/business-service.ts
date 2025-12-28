@@ -82,6 +82,7 @@ export class BusinessService {
                 { name: 'Accounts Receivable', type: 'ASSET' },
                 { name: 'Sales', type: 'INCOME' },
                 { name: 'Tax Payable', type: 'LIABILITY' },
+                { name: 'Accounts Payable', type: 'LIABILITY' },
                 { name: 'Cost of Goods Sold', type: 'EXPENSE' },
                 { name: 'Inventory', type: 'ASSET' },
             ];

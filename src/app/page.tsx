@@ -40,7 +40,8 @@ import {
   DollarSign,
   CreditCard,
   TrendingDown,
-  Target
+  Target,
+  ShoppingBag
 } from "lucide-react";
 import { Terminal } from "@/components/terminal";
 import { clsx, type ClassValue } from "clsx";
@@ -109,11 +110,22 @@ export default function Home() {
   const [dayAction, setDayAction] = useState<"OPEN" | "CLOSE">("OPEN");
   const [submissionKeys, setSubmissionKeys] = useState<string[]>([""]);
 
-  // Admin Features (Team & Keys)
+  const [newKey, setNewKey] = useState<string | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
-  const [newKey, setNewKey] = useState<string | null>(null);
+
+  // Purchase Module State
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [parties, setParties] = useState<any[]>([]);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [purchaseForm, setPurchaseForm] = useState<any>({
+    supplierId: "",
+    warehouseId: "",
+    invoiceNo: "",
+    items: [{ itemId: "", quantity: 1, unitPrice: 0, batchNo: "", expiryDate: "" }],
+    payments: [{ method: "CASH", amount: 0 }]
+  });
 
   // For Dashboard
   const { config, isFeatureEnabled, getRule, loading: configLoading } = useBusinessConfig(businessData?.business?.id || null);
@@ -196,6 +208,29 @@ export default function Home() {
       fetch(`/api/journal?businessId=${businessData.business.id}`)
         .then(res => res.json())
         .then(data => setJournals(data));
+    }
+  }, [businessData, activeTab]);
+
+  useEffect(() => {
+    if (businessData?.business?.id && activeTab === "PURCHASES") {
+      fetch(`/api/purchases?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setPurchases(data);
+          else console.error("Invalid purchases data:", data);
+        });
+
+      fetch(`/api/parties?businessId=${businessData.business.id}&type=SUPPLIER`)
+        .then(res => res.json())
+        .then(data => setParties(data));
+
+      fetch(`/api/items?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => setItems(data));
+
+      fetch(`/api/warehouses?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => setWarehouses(data));
     }
   }, [businessData, activeTab]);
 
@@ -486,6 +521,56 @@ export default function Home() {
       setItems([newItem, ...items]);
       setShowItemModal(false);
       alert("Item created successfully!");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreatePurchase = async () => {
+    setLoading(true);
+    try {
+      // Calculate totals
+      let total = 0;
+      purchaseForm.items.forEach((i: any) => {
+        total += (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0);
+      });
+
+      const body = {
+        ...purchaseForm,
+        businessId: businessData.business.id,
+        userId: businessData.user.id,
+        items: purchaseForm.items.map((i: any) => ({
+          ...i,
+          quantity: parseFloat(i.quantity),
+          unitPrice: parseFloat(i.unitPrice),
+          unitId: items.find(it => it.id === i.itemId)?.unitId || "default"
+        })),
+        payments: purchaseForm.payments.map((p: any) => ({
+          ...p,
+          amount: parseFloat(p.amount) || total
+        }))
+      };
+
+      const res = await fetch("/api/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+
+      setPurchases([result, ...purchases]);
+      setShowPurchaseModal(false);
+      setPurchaseForm({
+        supplierId: "",
+        warehouseId: "",
+        invoiceNo: "",
+        items: [{ itemId: "", quantity: 1, unitPrice: 0, batchNo: "", expiryDate: "" }],
+        payments: [{ method: "CASH", amount: 0 }]
+      });
+      alert("Purchase recorded and stock updated!");
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -1237,6 +1322,64 @@ export default function Home() {
               </div>
             </div>
           </main>
+        ) : activeTab === "PURCHASES" ? (
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
+            <header className="p-16 pb-10 flex justify-between items-end">
+              <div>
+                <h1 className="text-5xl font-extrabold tracking-tighter dark:text-white mb-3">Procurement</h1>
+                <p className="text-zinc-400 font-medium tracking-tight">Manage incoming stock and supplier invoices</p>
+              </div>
+              <button
+                onClick={() => setShowPurchaseModal(true)}
+                className="px-10 py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-extrabold text-lg flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-2xl"
+              >
+                <Plus size={24} /> Record Purchase
+              </button>
+            </header>
+
+            <div className="flex-grow overflow-y-auto px-16 pb-16">
+              <div className="bg-white dark:bg-zinc-900 rounded-[3rem] border border-zinc-100 dark:border-zinc-800 overflow-hidden shadow-2xl">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50 dark:bg-zinc-800/20 text-zinc-400 text-[10px] font-bold uppercase tracking-[0.2em] text-left">
+                      <th className="px-10 py-6">Reference / Invoice</th>
+                      <th className="px-10 py-6">Supplier</th>
+                      <th className="px-10 py-6">Total Amount</th>
+                      <th className="px-10 py-6">Status</th>
+                      <th className="px-10 py-6 text-right">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
+                    {Array.isArray(purchases) && purchases.map(p => (
+                      <tr key={p.id} className="group hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                        <td className="px-10 py-8">
+                          <div className="font-extrabold text-lg dark:text-white tracking-tight">{p.referenceNo}</div>
+                          <div className="text-xs text-zinc-400 mt-1">Inv: {p.invoiceNo}</div>
+                        </td>
+                        <td className="px-10 py-8">
+                          <div className="font-bold dark:text-zinc-300">{p.supplier?.name}</div>
+                        </td>
+                        <td className="px-10 py-8">
+                          <div className="font-black text-xl dark:text-white">${parseFloat(p.total).toFixed(2)}</div>
+                        </td>
+                        <td className="px-10 py-8">
+                          <Badge text={p.status} active={p.status === 'COMPLETED'} />
+                        </td>
+                        <td className="px-10 py-8 text-right text-zinc-400 font-medium text-sm">
+                          {new Date(p.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                    {(Array.isArray(purchases) ? purchases.length === 0 : true) && (
+                      <tr>
+                        <td colSpan={5} className="px-10 py-20 text-center text-zinc-400 font-bold">No purchase records found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </main>
         ) : activeTab === "TEAM" ? (
           <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
             <header className="p-16 pb-10 flex justify-between items-end">
@@ -1712,6 +1855,172 @@ export default function Home() {
                   CREATE MEMBER
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showPurchaseModal && (
+          <div className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-4xl max-h-[90vh] rounded-[4rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 flex flex-col animate-in zoom-in-95 duration-300">
+              <div className="p-12 pb-6 flex justify-between items-start">
+                <div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white">Record Procurement</h2>
+                  <p className="text-zinc-400 font-medium">Add stock from supplier invoice</p>
+                </div>
+                <button onClick={() => setShowPurchaseModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+
+              <div className="flex-grow overflow-y-auto p-12 pt-0 space-y-10">
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="col-span-1 space-y-3">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Supplier</label>
+                    <select
+                      value={purchaseForm.supplierId}
+                      onChange={(e) => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })}
+                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all shadow-inner"
+                    >
+                      <option value="">Choose Supplier...</option>
+                      {parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-1 space-y-3">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Warehouse</label>
+                    <select
+                      value={purchaseForm.warehouseId}
+                      onChange={(e) => setPurchaseForm({ ...purchaseForm, warehouseId: e.target.value })}
+                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all shadow-inner"
+                    >
+                      <option value="">Select Target...</option>
+                      {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-1 space-y-3">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Invoice No</label>
+                    <input
+                      value={purchaseForm.invoiceNo}
+                      onChange={(e) => setPurchaseForm({ ...purchaseForm, invoiceNo: e.target.value })}
+                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all shadow-inner"
+                      placeholder="SUP-XXXX"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Line Items</label>
+                    <button
+                      onClick={() => setPurchaseForm({ ...purchaseForm, items: [...purchaseForm.items, { itemId: "", quantity: 1, unitPrice: 0, batchNo: "", expiryDate: "" }] })}
+                      className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline"
+                    >
+                      + Add Row
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    {purchaseForm.items.map((li: any, idx: number) => (
+                      <div key={idx} className="grid grid-cols-12 gap-4 items-end bg-zinc-50/50 dark:bg-zinc-950/30 p-4 rounded-3xl border border-zinc-100 dark:border-zinc-800/50">
+                        <div className="col-span-4 space-y-2">
+                          <select
+                            value={li.itemId}
+                            onChange={(e) => {
+                              const newItems = [...purchaseForm.items];
+                              newItems[idx].itemId = e.target.value;
+                              setPurchaseForm({ ...purchaseForm, items: newItems });
+                            }}
+                            className="w-full px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-bold text-sm dark:text-white outline-none"
+                          >
+                            <option value="">Item...</option>
+                            {items.filter(i => i.type === 'PRODUCT').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="col-span-2 space-y-2">
+                          <input
+                            type="number"
+                            value={li.quantity}
+                            onChange={(e) => {
+                              const newItems = [...purchaseForm.items];
+                              newItems[idx].quantity = e.target.value;
+                              setPurchaseForm({ ...purchaseForm, items: newItems });
+                            }}
+                            className="w-full px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-bold text-sm dark:text-white outline-none"
+                            placeholder="Qty"
+                          />
+                        </div>
+                        <div className="col-span-2 space-y-2">
+                          <input
+                            type="number"
+                            value={li.unitPrice}
+                            onChange={(e) => {
+                              const newItems = [...purchaseForm.items];
+                              newItems[idx].unitPrice = e.target.value;
+                              setPurchaseForm({ ...purchaseForm, items: newItems });
+                            }}
+                            className="w-full px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-bold text-sm dark:text-white outline-none"
+                            placeholder="Cost"
+                          />
+                        </div>
+                        <div className="col-span-3 space-y-2">
+                          <input
+                            value={li.batchNo}
+                            onChange={(e) => {
+                              const newItems = [...purchaseForm.items];
+                              newItems[idx].batchNo = e.target.value;
+                              setPurchaseForm({ ...purchaseForm, items: newItems });
+                            }}
+                            className="w-full px-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-bold text-sm dark:text-white outline-none"
+                            placeholder="Batch"
+                          />
+                        </div>
+                        <div className="col-span-1 pb-1">
+                          <button
+                            onClick={() => {
+                              const newItems = purchaseForm.items.filter((_: any, i: number) => i !== idx);
+                              setPurchaseForm({ ...purchaseForm, items: newItems });
+                            }}
+                            className="text-rose-500 hover:scale-110 transition-transform"
+                          >✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-end">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block">Payment Mode</label>
+                    <div className="flex gap-4">
+                      {['CASH', 'BANK', 'CREDIT'].map(m => (
+                        <button
+                          key={m}
+                          onClick={() => {
+                            const newPayments = [{ ...purchaseForm.payments[0], method: m }];
+                            setPurchaseForm({ ...purchaseForm, payments: newPayments });
+                          }}
+                          className={cn(
+                            "px-6 py-3 rounded-2xl font-black text-[10px] tracking-widest transition-all",
+                            purchaseForm.payments[0].method === m ? "bg-black dark:bg-white text-white dark:text-black shadow-lg" : "bg-zinc-50 dark:bg-zinc-950 text-zinc-400"
+                          )}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Grant Total</div>
+                    <div className="text-5xl font-black tracking-tighter dark:text-white">
+                      ${purchaseForm.items.reduce((acc: number, i: any) => acc + (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0), 0).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleCreatePurchase}
+                  disabled={loading}
+                  className="w-full py-6 bg-black dark:bg-white text-white dark:text-black rounded-[2rem] font-black text-xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-4"
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <><Plus size={24} /> Finalize Procurement</>}
+                </button>
+              </div>
             </div>
           </div>
         )}

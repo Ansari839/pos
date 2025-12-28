@@ -174,6 +174,91 @@ export class AccountingService {
     }
 
     /**
+     * Posts accounting entries for a finalized purchase.
+     */
+    static async postPurchaseAccounting(purchaseId: string, tx?: any) {
+        const db = tx || prisma;
+
+        // 1. Fetch Purchase with all needed details
+        const purchase = await db.purchase.findUnique({
+            where: { id: purchaseId },
+            include: {
+                items: true,
+                payments: true,
+                business: {
+                    include: {
+                        accounts: true
+                    }
+                }
+            }
+        });
+
+        if (!purchase) throw new Error(`Purchase ${purchaseId} not found`);
+
+        const accounts = purchase.business.accounts;
+        const findAccount = (name: string) => accounts.find((a: any) => a.name === name);
+
+        const inventoryAcc = findAccount('Inventory');
+        const taxAcc = findAccount('Tax Payable');
+        const cashAcc = findAccount('Cash');
+        const bankAcc = findAccount('Bank');
+        const apAcc = findAccount('Accounts Payable');
+
+        if (!inventoryAcc || !taxAcc) throw new Error('Essential accounting accounts missing');
+
+        // 2. Prepare Journal Entry
+        return await db.journalEntry.create({
+            data: {
+                businessId: purchase.businessId,
+                referenceType: 'PURCHASE',
+                referenceId: purchase.id,
+                description: `Purchase: ${purchase.invoiceNo} (Ref: ${purchase.referenceNo})`,
+                lines: {
+                    create: [
+                        // Debit Inventory (Asset increase)
+                        {
+                            accountId: inventoryAcc.id,
+                            debit: purchase.subtotal,
+                            credit: 0,
+                        },
+                        // Debit Tax Payable (Input Tax / Asset-like or Liability reduction)
+                        {
+                            accountId: taxAcc.id,
+                            debit: purchase.taxTotal,
+                            credit: 0,
+                        },
+                        // Credits for each payment
+                        ...purchase.payments.map((p: any) => {
+                            let accId = cashAcc?.id;
+                            if (p.method === 'CARD' || p.method === 'BANK') accId = bankAcc?.id;
+                            if (p.method === 'CREDIT') accId = apAcc?.id;
+
+                            if (!accId) throw new Error(`No account mapping for payment method ${p.method}. Ensure 'Accounts Payable' exists for credit purchases.`);
+
+                            const lineData: any = {
+                                accountId: accId,
+                                debit: 0,
+                                credit: p.amount,
+                            };
+
+                            // Link to PartyLedger if it's a CREDIT purchase
+                            if (p.method === 'CREDIT' && purchase.supplierId) {
+                                lineData.partyLedger = {
+                                    create: {
+                                        partyId: purchase.supplierId
+                                    }
+                                };
+                            }
+
+                            return lineData;
+                        })
+                    ]
+                }
+            }
+        });
+    }
+
+    /**
      * Posts accounting entries for a stock adjustment.
      * Manual OUT (e.g. wastage) is usually an expense vs inventory deduction.
      * Manual IN (e.g. found stock) is inventory increase vs income.

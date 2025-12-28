@@ -1,4 +1,4 @@
-# ✨ Antigravity POS & Inventory Management System
+# ✨ MS Tech POS & Inventory Management System
 
 A premium, end-to-end solution for modern businesses, built with high-performance technologies and a pixel-perfect aesthetic.
 
@@ -75,4 +75,4 @@ A premium, end-to-end solution for modern businesses, built with high-performanc
 
 ---
 
-© 2025 Antigravity Systems. All rights reserved.
+© 2025 MS Tech Systems. All rights reserved.

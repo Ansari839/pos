@@ -69,6 +69,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
         if (features["INVENTORY"]) {
             items.push({ title: "Master Data", route: "INVENTORY", icon: Boxes });
             items.push({ title: "Inventory", route: "WAREHOUSES", icon: Warehouse });
+            items.push({ title: "Purchases", route: "PURCHASES", icon: ShoppingBag });
         }
 
         if (features["POS_BASIC"]) {
