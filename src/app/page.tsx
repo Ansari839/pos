@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Utensils,
   ShoppingCart,
@@ -80,8 +80,8 @@ const THEME_COLORS: Record<string, string> = {
 
 export default function Home() {
   const { themeColor, setThemeColor, isDark, toggleDark } = useTheme();
-  const { industry, icons, getMenuItems } = useUI();
-  const [step, setStep] = useState<"SELECT_INDUSTRY" | "ONBOARDING" | "DASHBOARD">("SELECT_INDUSTRY");
+  const { industry, setIndustry, icons, getMenuItems } = useUI();
+  const [step, setStep] = useState<"SELECT_INDUSTRY" | "ONBOARDING" | "LOGIN" | "DASHBOARD">("SELECT_INDUSTRY");
   const [activeTab, setActiveTab] = useState<string>("OVERVIEW");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journals, setJournals] = useState<any[]>([]);
@@ -276,6 +276,37 @@ export default function Home() {
     }
   };
 
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+
+      // Fetch warehouse for the business
+      const whRes = await fetch(`/api/warehouses?businessId=${result.business.id}`);
+      const whs = await whRes.json();
+
+      setBusinessData(result);
+      if (whs && whs.length > 0) {
+        setSelectedWarehouse(whs[0]);
+      }
+      setStep("DASHBOARD");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleOnboard = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -406,6 +437,12 @@ export default function Home() {
             >
               <RefreshCw size={14} /> Quick Start with Test Data
             </button>
+            <button
+              onClick={() => setStep("LOGIN")}
+              className="mt-4 text-zinc-400 hover:text-black dark:hover:text-white text-sm font-medium flex items-center gap-2 mx-auto transition-colors"
+            >
+              Have an account? Login
+            </button>
           </div>
         </div>
 
@@ -481,6 +518,41 @@ export default function Home() {
                 className="w-full py-5 bg-black dark:bg-white text-white dark:text-black rounded-[1.5rem] font-bold text-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-2xl shadow-black/20 dark:shadow-white/5"
               >
                 {loading ? <RefreshCw className="animate-spin" /> : "Deploy POS"} <ArrowRight size={24} />
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "LOGIN") {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-zinc-200/50 via-transparent to-transparent">
+        <div className="max-w-xl w-full bg-white dark:bg-zinc-900 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 p-12 shadow-2xl animate-in zoom-in-95 duration-500">
+          <button onClick={() => setStep("SELECT_INDUSTRY")} className="text-zinc-400 text-sm mb-8 hover:text-black dark:hover:text-white flex items-center transition-colors">
+            <ArrowRight size={16} className="rotate-180 mr-2" /> Back
+          </button>
+          <div className="mb-10">
+            <h2 className="text-3xl font-extrabold dark:text-white tracking-tight mb-3">Welcome Back</h2>
+            <p className="text-zinc-500 text-base leading-relaxed">Enter your credentials to access your dashboard.</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-2">Email Address</label>
+              <input name="email" type="email" required autoFocus className="w-full px-6 py-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 outline-none focus:border-black dark:focus:border-white transition-all" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-2">Password</label>
+              <input name="password" type="password" required className="w-full px-6 py-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 outline-none focus:border-black dark:focus:border-white transition-all" />
+            </div>
+            <div className="pt-4">
+              <button
+                disabled={loading}
+                className="w-full py-5 bg-black dark:bg-white text-white dark:text-black rounded-[1.5rem] font-bold text-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 shadow-2xl shadow-black/20 dark:shadow-white/5"
+              >
+                {loading ? <RefreshCw className="animate-spin" /> : "Login"} <ArrowRight size={24} />
               </button>
             </div>
           </form>

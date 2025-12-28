@@ -72,8 +72,6 @@ export class SystemService {
     static async closeDay(businessId: string, userId: string, keys: string[]) {
         await this.validateKeys(businessId, "DAY_CLOSE", keys);
 
-        const today = dayjs().startOf('day').toDate();
-
         return await prisma.$transaction(async (tx: any) => {
             // Mark keys as used
             await tx.operationKey.updateMany({
@@ -87,7 +85,7 @@ export class SystemService {
                     businessId,
                     status: "OPEN"
                 },
-                orderBy: { date: 'desc' }
+                orderBy: { date: 'desc' as const }
             });
 
             if (!dayRecord) throw new Error("No open day found to close.");
