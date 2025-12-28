@@ -112,6 +112,7 @@ export default function Home() {
   // Admin Features (Team & Keys)
   const [users, setUsers] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
 
   // For Dashboard
@@ -459,55 +460,44 @@ export default function Home() {
     }
   };
 
-  const addItem = async () => {
-    const name = prompt("Item Name:");
-    if (!name) return;
-    const type = confirm("Is this a Service? (Cancel for Product)") ? "SERVICE" : "PRODUCT";
-    const basePrice = prompt("Base Price:", "10");
-
-    const res = await fetch("/api/items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        businessId: businessData.business.id,
-        name,
-        type,
-        basePrice: parseFloat(basePrice || "0"),
-        userId: businessData.user.id
-      })
-    });
-    const newItem = await res.json();
-    if (newItem.error) alert(newItem.error);
-    else setItems([newItem, ...items]);
+  const addItem = () => {
+    setShowItemModal(true);
   };
 
-  const adjustStock = async (itemId: string) => {
-    if (!selectedWarehouse) return alert("Select a warehouse first.");
-    const qty = prompt("Quantity to adjust (e.g. 10 for IN, -5 for OUT):");
-    if (!qty) return;
+  const handleCreateItem = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
 
-    const res = await fetch("/api/stock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        businessId: businessData.business.id,
-        itemId,
-        warehouseId: selectedWarehouse.id,
-        quantity: parseFloat(qty),
-        unitId: items.find(i => i.id === itemId)?.unitId || null, // Simplified for demo
-        type: parseFloat(qty) >= 0 ? 'IN' : 'OUT',
-        referenceType: 'ADJUSTMENT',
-        userId: businessData.user.id
-      })
-    });
-    const result = await res.json();
-    if (result.error) alert(result.error);
-    else {
-      // Refresh stock
-      fetch(`/api/stock?warehouseId=${selectedWarehouse.id}`)
-        .then(res => res.json())
-        .then(data => setStock(data));
+    try {
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...data,
+          businessId: businessData.business.id,
+          basePrice: parseFloat(data.basePrice as string || "0"),
+          userId: businessData.user.id
+        })
+      });
+      const newItem = await res.json();
+      if (newItem.error) throw new Error(newItem.error);
+      setItems([newItem, ...items]);
+      setShowItemModal(false);
+      alert("Item created successfully!");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const adjustStock = (itemId: string) => {
+    if (!selectedWarehouse) return alert("Select a warehouse first.");
+    const item = items.find(i => i.id === itemId);
+    setAdjData({ ...adjData, itemId, quantity: 0, type: "IN", reason: "Initial Stock" });
+    setShowAdjModal(true);
   };
 
   if (step === "SELECT_INDUSTRY") {
@@ -1604,6 +1594,63 @@ export default function Home() {
                   {dayAction === "OPEN" ? "OPEN BUSINESS DAY" : "CLOSE BUSINESS DAY"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showItemModal && (
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-xl flex items-center justify-center p-10 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[4rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 animate-in zoom-in-95 duration-300">
+              <div className="p-16 pb-10 flex justify-between items-start">
+                <div>
+                  <div className="p-4 rounded-3xl w-fit mb-6 bg-primary/10 text-primary">
+                    <Package size={32} />
+                  </div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white mb-2">
+                    Create New Item
+                  </h2>
+                  <p className="text-zinc-400 font-medium tracking-tight">Add a product or service to your catalog</p>
+                </div>
+                <button onClick={() => setShowItemModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleCreateItem} className="p-16 pt-0 space-y-6">
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Item Name</label>
+                    <input name="name" required autoFocus className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2" placeholder="e.g. Cappuccino, Silk Fabric" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Item Type</label>
+                      <select name="type" className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2">
+                        <option value="PRODUCT">Product (Stocked)</option>
+                        <option value="SERVICE">Service (Non-Stocked)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Base Price</label>
+                      <input name="basePrice" type="number" step="0.01" required className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2" placeholder="0.00" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl border border-zinc-100 dark:border-zinc-800 border-dashed mt-6">
+                  <p className="text-xs text-zinc-400 font-medium leading-relaxed italic">
+                    Universal Config: Default units and taxes will be applied based on your business industry rules.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-8 mt-8 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-2xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-4"
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <CheckCircle2 size={32} />}
+                  CREATE ITEM
+                </button>
+              </form>
             </div>
           </div>
         )}
