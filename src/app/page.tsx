@@ -38,6 +38,20 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useBusinessConfig } from "@/hooks/use-business-config";
 import Decimal from "decimal.js";
+import { useQuery } from "@tanstack/react-query";
+import {
+  SalesTrendChart,
+  TopItemsChart,
+  FinancialPie
+} from "@/components/dashboard-charts";
+import {
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Zap,
+  CreditCard,
+  DollarSign
+} from "lucide-react";
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -86,6 +100,17 @@ export default function Home() {
 
   // For Dashboard
   const { config, isFeatureEnabled, getRule, loading: configLoading } = useBusinessConfig(businessData?.business?.id || null);
+
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['dashboard', businessData?.business?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/reports/dashboard?businessId=${businessData.business.id}`);
+      if (!res.ok) throw new Error('Failed to fetch dashboard');
+      return res.json();
+    },
+    enabled: !!businessData?.business?.id && activeTab === "OVERVIEW",
+    refetchInterval: 30000, // Refresh every 30s
+  });
 
   useEffect(() => {
     fetch("/api/industries")
@@ -464,61 +489,127 @@ export default function Home() {
 
         {/* Main Content */}
         {activeTab === "OVERVIEW" ? (
-          <main className="flex-grow p-16 overflow-y-auto animate-in fade-in duration-700">
-            <header className="flex justify-between items-start mb-16">
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700">
+            <header className="p-16 pb-10 flex justify-between items-center bg-white dark:bg-zinc-900/50 backdrop-blur-xl border-b border-zinc-100 dark:border-zinc-800/50">
               <div>
-                <div className="flex items-center gap-3 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest w-fit mb-4 border border-emerald-100 dark:border-emerald-800">
-                  <CheckCircle2 size={14} /> System Online
-                </div>
-                <h1 className="text-5xl font-extrabold tracking-tight dark:text-white mb-2">{businessData.business.name}</h1>
-                <p className="text-zinc-400 text-lg font-medium">{selectedIndustry.name} Infrastructure</p>
+                <h1 className="text-5xl font-black tracking-tighter dark:text-white mb-2">Business Pulse</h1>
+                <p className="text-zinc-400 font-medium tracking-tight">Real-time performance metrics for {businessData.business.name}</p>
               </div>
-              <div className="hidden md:block">
-                <div className="bg-zinc-50 dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-100 dark:border-zinc-800">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 mb-2">Configured Cap</div>
-                  <div className="text-2xl font-black font-mono dark:text-white">
-                    {getRule("discount.max_percent", 0)}% <span className="text-sm font-medium text-zinc-400 ml-1">MAX DISCOUNT</span>
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-1">Status</span>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-full text-[10px] font-black tracking-widest border border-emerald-100 dark:border-emerald-800">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    LIVE UPDATES
                   </div>
                 </div>
               </div>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mb-16">
-              <StatCard label="Live Revenue" value="$0.00" trend="+0%" />
-              <StatCard label="Total Transactions" value="0" trend="0" />
-              <StatCard label="Industry Features" value={config?.features ? Object.keys(config.features).filter(k => config.features[k]).length : 0} trend="Active" />
-            </div>
+            <div className="p-16 pt-10 flex-grow overflow-y-auto space-y-12">
+              {dashboardLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-48 rounded-[3rem] bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+                  ))}
+                </div>
+              ) : dashboardData ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div className="p-10 rounded-[3rem] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-xl hover:-translate-y-2 transition-all group relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Month Sales</div>
+                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 rounded-2xl group-hover:rotate-12 transition-transform">
+                          <TrendingUp size={20} />
+                        </div>
+                      </div>
+                      <div className="text-4xl font-black dark:text-white tracking-tighter">${dashboardData.sales.totalSales.toLocaleString()}</div>
+                      <div className="text-xs text-zinc-400 mt-2 font-medium tracking-tight">{dashboardData.sales.transactionCount} transactions this month</div>
+                    </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-              <div className="p-12 bg-zinc-50/50 dark:bg-zinc-900/30 rounded-[3rem] border border-zinc-100 dark:border-zinc-800 flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 bg-white dark:bg-zinc-800 rounded-3xl shadow-xl flex items-center justify-center mb-8">
-                  <Layers size={32} className="text-zinc-300" />
-                </div>
-                <h3 className="text-2xl font-bold dark:text-white mb-3 tracking-tight">Generate Sample Catalog</h3>
-                <p className="text-zinc-500 max-w-sm leading-relaxed mb-8 text-sm">Populate your master data with industry-specific products and services to test your pricing rules and inventory logic.</p>
-                <button
-                  onClick={() => setActiveTab("INVENTORY")}
-                  className="px-8 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl font-bold hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all shadow-sm"
-                >
-                  Go to Master Data
-                </button>
-              </div>
+                    <div className="p-10 rounded-[3rem] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-xl hover:-translate-y-2 transition-all group relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Net Profit</div>
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-2xl group-hover:rotate-12 transition-transform">
+                          <DollarSign size={20} />
+                        </div>
+                      </div>
+                      <div className="text-4xl font-black dark:text-white tracking-tighter">${dashboardData.financial.netProfit.toLocaleString()}</div>
+                      <div className="text-xs text-zinc-400 mt-2 font-medium tracking-tight">Margin: {dashboardData.financial.revenue > 0 ? ((dashboardData.financial.netProfit / dashboardData.financial.revenue) * 100).toFixed(1) : 0}%</div>
+                    </div>
 
-              <div className="p-12 bg-black dark:bg-white rounded-[3rem] text-white dark:text-black flex flex-col items-start text-left relative overflow-hidden group">
-                <div className="relative z-10 flex flex-col h-full">
-                  <h3 className="text-3xl font-extrabold tracking-tight mb-4 leading-tight">Terminal<br />Awaiting Input</h3>
-                  <p className="text-zinc-400 dark:text-zinc-500 max-w-xs text-base mb-10">Scan barcode or select items from your catalog to begin a transaction.</p>
-                  <button
-                    onClick={() => setActiveTab("TERMINAL")}
-                    className="mt-auto px-10 py-4 bg-white/10 dark:bg-black/10 rounded-2xl font-bold hover:bg-white/20 dark:hover:bg-black/20 transition-all w-fit"
-                  >
-                    Open Terminal
-                  </button>
+                    <div className="p-10 rounded-[3rem] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-xl hover:-translate-y-2 transition-all group relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Stock Value</div>
+                        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded-2xl group-hover:rotate-12 transition-transform">
+                          <Box size={20} />
+                        </div>
+                      </div>
+                      <div className="text-4xl font-black dark:text-white tracking-tighter">${dashboardData.inventory.totalValue.toLocaleString()}</div>
+                      <div className="text-xs text-zinc-400 mt-2 font-medium tracking-tight">{dashboardData.inventory.lowStockCount} items low on stock</div>
+                    </div>
+
+                    <div className="p-10 rounded-[3rem] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-xl hover:-translate-y-2 transition-all group relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Average Ticket</div>
+                        <div className="p-3 bg-purple-50 dark:bg-purple-950/20 text-purple-600 rounded-2xl group-hover:rotate-12 transition-transform">
+                          <CreditCard size={20} />
+                        </div>
+                      </div>
+                      <div className="text-4xl font-black dark:text-white tracking-tighter">${dashboardData.sales.averageTicket.toFixed(2)}</div>
+                      <div className="text-xs text-zinc-400 mt-2 font-medium tracking-tight">Based on this month's data</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    <div className="xl:col-span-2 p-12 rounded-[4rem] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-2xl">
+                      <div className="flex justify-between items-end mb-10">
+                        <div>
+                          <h3 className="text-3xl font-black tracking-tighter dark:text-white mb-2">Sales Forecast</h3>
+                          <p className="text-zinc-400 font-medium tracking-tight">Daily revenue trends</p>
+                        </div>
+                      </div>
+                      <SalesTrendChart data={dashboardData.sales.chartData} />
+                    </div>
+
+                    <div className="flex flex-col gap-8">
+                      <div className="p-12 rounded-[4rem] bg-black dark:bg-zinc-800 text-white flex flex-col items-center justify-center text-center relative overflow-hidden group">
+                        <div className="relative z-10">
+                          <h4 className="text-sm font-bold uppercase tracking-[0.3em] text-zinc-500 mb-4">Financial Health</h4>
+                          <div className="text-5xl font-black tracking-tight mb-2">${(dashboardData.financial.revenue / 1000).toFixed(1)}k</div>
+                          <p className="text-xs text-zinc-400 font-medium">Monthly Gross Revenue</p>
+                        </div>
+                        <div className="absolute top-0 right-0 p-8 opacity-20 rotate-12 group-hover:rotate-0 transition-all duration-700">
+                          <TrendingUp size={120} />
+                        </div>
+                      </div>
+
+                      <div className="flex-grow p-10 rounded-[4rem] bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-2xl">
+                        <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-8 border-b border-zinc-100 dark:border-zinc-800 pb-4">Top Performance</h4>
+                        <div className="space-y-6">
+                          {dashboardData.topItems.map((item: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center group cursor-pointer">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-black group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-all">{idx + 1}</div>
+                                <div className="font-bold dark:text-white tracking-tight">{item.name}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-black dark:text-white">${item.revenue.toLocaleString()}</div>
+                                <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">{item.quantity} SOLD</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="py-20 text-center">
+                  <AlertTriangle size={48} className="text-zinc-200 mx-auto mb-6" />
+                  <h4 className="text-xl font-bold dark:text-white">Unable to load dashboard</h4>
                 </div>
-                <div className="absolute -right-20 -bottom-20 opacity-10 group-hover:scale-110 transition-transform duration-700">
-                  <Smartphone size={320} />
-                </div>
-              </div>
+              )}
             </div>
           </main>
         ) : activeTab === "INVENTORY" ? (

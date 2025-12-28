@@ -567,8 +567,9 @@ model StockAdjustment {
   warehouse       Warehouse @relation(fields: [warehouseId], references: [id])
   
   quantityBaseUnit Decimal  @db.Decimal(18, 4)
-  reason          String?
-  type            String   // IN | OUT
+  value            Decimal? @db.Decimal(18, 4)
+  reason           String?
+  type             String   // IN | OUT
   
   createdBy       String
   user            User     @relation(fields: [createdBy], references: [id])

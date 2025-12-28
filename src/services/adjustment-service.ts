@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { Decimal } from 'decimal.js';
+import { AccountingService } from './accounting-service';
 
 export interface AdjustmentInput {
     businessId: string;
@@ -69,6 +70,9 @@ export class AdjustmentService {
                     createdBy: input.userId
                 }
             });
+
+            // 4. Post Accounting
+            await AccountingService.postAdjustmentAccounting(adjustment.id, tx);
 
             return adjustment;
         });

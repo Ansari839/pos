@@ -172,4 +172,51 @@ export class AccountingService {
             }
         });
     }
+
+    /**
+     * Posts accounting entries for a stock adjustment.
+     * Manual OUT (e.g. wastage) is usually an expense vs inventory deduction.
+     * Manual IN (e.g. found stock) is inventory increase vs income.
+     */
+    static async postAdjustmentAccounting(adjustmentId: string, tx?: any) {
+        const db = tx || prisma;
+        const adj = await db.stockAdjustment.findUnique({
+            where: { id: adjustmentId },
+            include: {
+                item: true,
+                business: { include: { accounts: true } }
+            }
+        });
+
+        if (!adj) throw new Error(`Stock Adjustment ${adjustmentId} not found`);
+
+        const accounts = adj.business.accounts;
+        const findAccount = (name: string) => accounts.find((a: any) => a.name === name);
+
+        const inventoryAcc = findAccount('Inventory');
+        const expenseAcc = findAccount('Cost of Goods Sold'); // Or a specific Wastage account
+        const incomeAcc = findAccount('Sales'); // Or 'Miscellaneous Income'
+
+        if (!inventoryAcc || !expenseAcc) throw new Error('Essential accounting accounts missing');
+
+        const value = adj.value || new Decimal(adj.item.costPrice).mul(adj.quantityBaseUnit);
+
+        return await db.journalEntry.create({
+            data: {
+                businessId: adj.businessId,
+                referenceType: 'ADJUSTMENT',
+                referenceId: adj.id,
+                description: `Stock Adjustment: ${adj.reason || 'Manual correction'} (${adj.item.name})`,
+                lines: {
+                    create: adj.type === 'OUT' ? [
+                        { accountId: expenseAcc.id, debit: value, credit: 0 },
+                        { accountId: inventoryAcc.id, debit: 0, credit: value }
+                    ] : [
+                        { accountId: inventoryAcc.id, debit: value, credit: 0 },
+                        { accountId: incomeAcc?.id || (findAccount('Sales')?.id), debit: 0, credit: value }
+                    ]
+                }
+            }
+        });
+    }
 }
