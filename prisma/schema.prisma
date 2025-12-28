@@ -39,6 +39,8 @@ model Business {
   journalEntries JournalEntry[]
   parties     Party[]
   auditLogs   AuditLog[]
+  saleReturns SaleReturn[]
+  stockAdjustments StockAdjustment[]
 }
 
 model Industry {
@@ -76,6 +78,8 @@ model User {
   sales      Sale[]
   
   auditLogs  AuditLog[]
+  saleReturns SaleReturn[]
+  stockAdjustments StockAdjustment[]
   
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
@@ -165,6 +169,7 @@ model Item {
   unit               Unit?     @relation(fields: [unitId], references: [id])
   
   basePrice          Decimal  @db.Decimal(18, 4)
+  costPrice          Decimal  @db.Decimal(18, 4) @default(0)
   
   taxId              String?
   tax                Tax?      @relation(fields: [taxId], references: [id])
@@ -179,6 +184,8 @@ model Item {
   stocks             Stock[]
   movements          StockMovement[]
   saleItems          SaleItem[]
+  saleReturnItems    SaleReturnItem[]
+  stockAdjustments   StockAdjustment[]
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -308,6 +315,7 @@ model Warehouse {
   users       UserWarehouse[]
   sessions    PosSession[]
   sales       Sale[]
+  stockAdjustments StockAdjustment[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -371,6 +379,7 @@ model Sale {
   
   items           SaleItem[]
   payments        Payment[]
+  returns         SaleReturn[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -493,4 +502,77 @@ model AuditLog {
   after      Json?
   
   timestamp  DateTime @default(now())
+}
+
+model SaleReturn {
+  id              String   @id @default(uuid())
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id])
+  
+  saleId          String
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  
+  reason          String?
+  
+  status          String   @default("COMPLETED") // COMPLETED | CANCELLED
+  
+  subtotal        Decimal  @db.Decimal(18, 4)
+  taxTotal        Decimal  @db.Decimal(18, 4)
+  total           Decimal  @db.Decimal(18, 4)
+  
+  createdBy       String
+  user            User     @relation(fields: [createdBy], references: [id])
+  
+  items           SaleReturnItem[]
+  refunds         Refund[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SaleReturnItem {
+  id              String   @id @default(uuid())
+  saleReturnId    String
+  saleReturn      SaleReturn @relation(fields: [saleReturnId], references: [id])
+  
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  
+  quantity        Decimal  @db.Decimal(18, 4)
+  unitPrice       Decimal  @db.Decimal(18, 4)
+  taxAmount       Decimal  @db.Decimal(18, 4)
+  total           Decimal  @db.Decimal(18, 4)
+}
+
+model Refund {
+  id              String   @id @default(uuid())
+  saleReturnId    String
+  saleReturn      SaleReturn @relation(fields: [saleReturnId], references: [id])
+  
+  method          String   // CASH | CARD | BANK | CREDIT
+  amount          Decimal  @db.Decimal(18, 4)
+  
+  createdAt       DateTime @default(now())
+}
+
+model StockAdjustment {
+  id              String   @id @default(uuid())
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id])
+  
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  
+  warehouseId     String
+  warehouse       Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  quantityBaseUnit Decimal  @db.Decimal(18, 4)
+  reason          String?
+  type            String   // IN | OUT
+  
+  createdBy       String
+  user            User     @relation(fields: [createdBy], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -95,9 +95,15 @@ export class SaleService {
                         // throw new Error(`Insufficient stock for ${item.name}`);
                     }
 
-                    await tx.stock.update({
-                        where: { id: stock?.id || '' },
-                        data: { quantityBaseUnit: { decrement: remainingToDeduct } }
+                    await tx.stock.upsert({
+                        where: { warehouseId_itemId: { warehouseId: input.warehouseId, itemId: item.id } },
+                        update: { quantityBaseUnit: { decrement: remainingToDeduct } },
+                        create: {
+                            businessId: input.businessId,
+                            warehouseId: input.warehouseId,
+                            itemId: item.id,
+                            quantityBaseUnit: remainingToDeduct.negated()
+                        }
                     });
 
                     // FIFO Batch deduction if applicable
@@ -177,6 +183,19 @@ export class SaleService {
             where: { businessId },
             include: { items: { include: { item: true } }, payments: true, user: true },
             orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    static async getSaleByInvoice(businessId: string, invoiceNo: string) {
+        return await prisma.sale.findFirst({
+            where: {
+                businessId,
+                invoiceNo: { equals: invoiceNo, mode: 'insensitive' }
+            },
+            include: {
+                items: { include: { item: true } },
+                returns: { include: { items: true } }
+            }
         });
     }
 }

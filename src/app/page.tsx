@@ -29,12 +29,15 @@ import {
   MoveRight,
   Monitor,
   Calculator,
-  BookOpen
+  BookOpen,
+  Undo2,
+  Wrench
 } from "lucide-react";
 import { Terminal } from "@/components/terminal";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useBusinessConfig } from "@/hooks/use-business-config";
+import Decimal from "decimal.js";
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -59,7 +62,7 @@ const THEME_COLORS: Record<string, string> = {
 
 export default function Home() {
   const [step, setStep] = useState<"SELECT_INDUSTRY" | "ONBOARDING" | "DASHBOARD">("SELECT_INDUSTRY");
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "INVENTORY" | "WAREHOUSES" | "TERMINAL" | "ACCOUNTING">("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "INVENTORY" | "WAREHOUSES" | "TERMINAL" | "ACCOUNTING" | "RETURNS">("OVERVIEW");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journals, setJournals] = useState<any[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
@@ -70,6 +73,16 @@ export default function Home() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
   const [stock, setStock] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Return Module State
+  const [returnSearch, setReturnSearch] = useState("");
+  const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [returnItems, setReturnItems] = useState<any[]>([]);
+  const [returnLoading, setReturnLoading] = useState(false);
+
+  // Adjustment State
+  const [showAdjModal, setShowAdjModal] = useState(false);
+  const [adjData, setAdjData] = useState<any>({ itemId: "", warehouseId: "", quantity: 0, type: "OUT", reason: "Wastage" });
 
   // For Dashboard
   const { config, isFeatureEnabled, getRule, loading: configLoading } = useBusinessConfig(businessData?.business?.id || null);
@@ -101,12 +114,116 @@ export default function Home() {
   }, [businessData, activeTab]);
 
   useEffect(() => {
-    if (selectedWarehouse && activeTab === "WAREHOUSES") {
+    if (businessData?.business?.id && activeTab === "ACCOUNTING") {
+      fetch(`/api/accounts?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => setAccounts(data));
+
+      fetch(`/api/journal?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => setJournals(data));
+    }
+  }, [businessData, activeTab]);
+
+  const searchSale = async () => {
+    if (!returnSearch) return;
+    setReturnLoading(true);
+    try {
+      const res = await fetch(`/api/sales?businessId=${businessData.business.id}&invoiceNo=${returnSearch}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // If it returns an array (which the GET route currently does), find the match
+        // But I updated SaleService.getSales to return all sales if no invoiceNo is provided.
+        // Wait, I didn't update the GET route in /api/sales/route.ts yet to handle invoiceNo.
+      }
+      setSelectedSale(data);
+      setReturnItems([]);
+    } catch (err) {
+      alert("Sale not found");
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const toggleReturnItem = (item: any) => {
+    setReturnItems(prev => {
+      const exists = prev.find(i => i.itemId === item.itemId);
+      if (exists) return prev.filter(i => i.itemId !== item.itemId);
+      return [...prev, { ...item, quantity: 1 }];
+    });
+  };
+
+  const updateReturnQty = (itemId: string, qty: number) => {
+    setReturnItems(prev => prev.map(i => i.itemId === itemId ? { ...i, quantity: qty } : i));
+  };
+
+  const submitReturn = async () => {
+    if (returnItems.length === 0) return;
+    setReturnLoading(true);
+    try {
+      // Calculate totals for refund (proportional tax)
+      const subtotal = returnItems.reduce((acc, i) => acc.plus(new Decimal(i.unitPrice).mul(i.quantity)), new Decimal(0));
+      const taxAmount = returnItems.reduce((acc, i) => {
+        const original = selectedSale.items.find((oi: any) => oi.itemId === i.itemId);
+        const ratio = new Decimal(i.quantity).div(original.quantity);
+        return acc.plus(new Decimal(original.taxAmount).mul(ratio));
+      }, new Decimal(0));
+
+      const total = subtotal.plus(taxAmount);
+
+      const res = await fetch("/api/returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId: businessData.business.id,
+          userId: businessData.user.id,
+          saleId: selectedSale.id,
+          reason: "Customer Return",
+          items: returnItems.map(i => ({ itemId: i.itemId, quantity: i.quantity })),
+          refunds: [{ method: "CASH", amount: total.toNumber() }]
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      alert("Return processed successfully!");
+      setSelectedSale(null);
+      setReturnSearch("");
+      setReturnItems([]);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const submitAdjustment = async () => {
+    if (!adjData.itemId || !adjData.quantity) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/adjustments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...adjData,
+          businessId: businessData.business.id,
+          userId: businessData.user.id,
+          warehouseId: selectedWarehouse.id,
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      alert("Adjustment successful!");
+      setShowAdjModal(false);
+      // Refresh stock
       fetch(`/api/stock?warehouseId=${selectedWarehouse.id}`)
         .then(res => res.json())
         .then(data => setStock(data));
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
-  }, [selectedWarehouse, activeTab]);
+  };
 
   const handleOnboard = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -334,6 +451,7 @@ export default function Home() {
             {isFeatureEnabled("INVENTORY") && <NavItem icon={Boxes} label="Master Data" active={activeTab === "INVENTORY"} onClick={() => setActiveTab("INVENTORY")} />}
             {isFeatureEnabled("INVENTORY") && <NavItem icon={Warehouse} label="Inventory" active={activeTab === "WAREHOUSES"} onClick={() => setActiveTab("WAREHOUSES")} />}
             {isFeatureEnabled("POS_BASIC") && <NavItem icon={Monitor} label="Terminal" active={activeTab === "TERMINAL"} onClick={() => setActiveTab("TERMINAL")} />}
+            {isFeatureEnabled("POS_BASIC") && <NavItem icon={Undo2} label="Returns" active={activeTab === "RETURNS"} onClick={() => setActiveTab("RETURNS")} />}
             <NavItem icon={Calculator} label="Accounting" active={activeTab === "ACCOUNTING"} onClick={() => setActiveTab("ACCOUNTING")} />
             {isFeatureEnabled("TABLE_MANAGEMENT") && <NavItem icon={Utensils} label="Floor Map" />}
             <NavItem icon={UsersIcon} label="Staff & Roles" />
@@ -574,6 +692,133 @@ export default function Home() {
               </section>
             </div>
           </main>
+        ) : activeTab === "RETURNS" ? (
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
+            <header className="p-16 pb-10">
+              <h1 className="text-5xl font-extrabold tracking-tighter dark:text-white mb-3">Sales Returns</h1>
+              <p className="text-zinc-400 font-medium">Search invoice to initiate a refund or return</p>
+            </header>
+
+            <div className="flex-grow overflow-y-auto px-16 pb-16 space-y-10">
+              <section className="bg-white dark:bg-zinc-900 p-10 rounded-[3rem] border border-zinc-100 dark:border-zinc-800 shadow-sm">
+                <div className="flex gap-4">
+                  <div className="flex-grow relative">
+                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
+                    <input
+                      value={returnSearch}
+                      onChange={(e) => setReturnSearch(e.target.value)}
+                      className="w-full pl-16 pr-8 py-5 bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl outline-none focus:ring-4 ring-black/5 dark:text-white text-lg font-bold"
+                      placeholder="Enter Invoice Number (e.g. INV-XXXXXX)"
+                    />
+                  </div>
+                  <button
+                    onClick={searchSale}
+                    disabled={returnLoading}
+                    className="px-10 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                  >
+                    {returnLoading ? <RefreshCw className="animate-spin" /> : <Search size={24} />} Find Sale
+                  </button>
+                </div>
+              </section>
+
+              {selectedSale && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 animate-in slide-in-from-bottom-5 duration-700">
+                  <div className="bg-white dark:bg-zinc-900 rounded-[3rem] border border-zinc-100 dark:border-zinc-800 overflow-hidden">
+                    <div className="p-8 border-b border-zinc-50 dark:border-zinc-800/50 flex justify-between items-center">
+                      <div>
+                        <h3 className="font-bold dark:text-white">Sale Detail: {selectedSale.invoiceNo}</h3>
+                        <p className="text-xs text-zinc-400 font-mono">{new Date(selectedSale.createdAt).toLocaleString()}</p>
+                      </div>
+                      <Badge text={selectedSale.status} active={selectedSale.status === 'COMPLETED'} />
+                    </div>
+                    <div className="p-0">
+                      <table className="w-full text-left">
+                        <thead className="text-[10px] uppercase tracking-widest text-zinc-400 bg-zinc-50/50 dark:bg-zinc-800/20">
+                          <tr>
+                            <th className="px-8 py-4">Item</th>
+                            <th className="px-8 py-4 text-center">Sold Qty</th>
+                            <th className="px-8 py-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
+                          {selectedSale.items.map((item: any) => {
+                            const isSelected = returnItems.find(ri => ri.itemId === item.itemId);
+                            return (
+                              <tr key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-white/[0.01]">
+                                <td className="px-8 py-6">
+                                  <div className="font-bold text-sm dark:text-white">{item.item.name}</div>
+                                  <div className="text-[10px] text-zinc-400 font-mono">${parseFloat(item.unitPrice).toFixed(2)} / unit</div>
+                                </td>
+                                <td className="px-8 py-6 text-center font-bold dark:text-white">
+                                  {parseFloat(item.quantity)}
+                                </td>
+                                <td className="px-8 py-6 text-right">
+                                  <button
+                                    onClick={() => toggleReturnItem(item)}
+                                    className={cn("px-4 py-2 rounded-xl text-xs font-bold transition-all", isSelected ? "bg-rose-50 text-rose-500" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-black hover:text-white")}
+                                  >
+                                    {isSelected ? 'Remove' : 'Select'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="space-y-8">
+                    <div className="bg-black dark:bg-white p-10 rounded-[3rem] text-white dark:text-black shadow-2xl">
+                      <h3 className="text-2xl font-black tracking-tight mb-8">Return Summary</h3>
+                      <div className="space-y-6">
+                        {returnItems.map(ri => (
+                          <div key={ri.itemId} className="flex justify-between items-center">
+                            <div className="flex-grow">
+                              <div className="font-bold text-lg">{ri.item.name}</div>
+                              <div className="flex items-center gap-4 mt-2">
+                                <button
+                                  onClick={() => updateReturnQty(ri.itemId, Math.max(1, ri.quantity - 1))}
+                                  className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center font-black">-</button>
+                                <span className="font-mono font-bold w-12 text-center text-xl">{ri.quantity}</span>
+                                <button
+                                  onClick={() => updateReturnQty(ri.itemId, Math.min(parseFloat(selectedSale.items.find((oi: any) => oi.itemId === ri.itemId).quantity), ri.quantity + 1))}
+                                  className="w-8 h-8 rounded-lg bg-white/10 dark:bg-black/10 flex items-center justify-center font-black">+</button>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-black text-xl">${(parseFloat(ri.unitPrice) * ri.quantity).toFixed(2)}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {returnItems.length === 0 && (
+                          <div className="py-10 text-center text-white/30 dark:text-black/30 font-bold border-2 border-dashed border-white/10 dark:border-black/10 rounded-2xl">
+                            Select items from the list to return
+                          </div>
+                        )}
+                      </div>
+
+                      {returnItems.length > 0 && (
+                        <div className="mt-10 pt-10 border-t border-white/10 dark:border-black/10 space-y-4">
+                          <div className="flex justify-between items-center text-2xl font-black">
+                            <span>Refund Total</span>
+                            <span>${returnItems.reduce((acc, i) => acc + (parseFloat(i.unitPrice) * i.quantity), 0).toFixed(2)}</span>
+                          </div>
+                          <button
+                            onClick={submitReturn}
+                            disabled={returnLoading}
+                            className="w-full py-6 bg-white dark:bg-black text-black dark:text-white rounded-2xl font-black text-xl shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
+                          >
+                            {returnLoading ? <RefreshCw className="animate-spin" /> : <Undo2 size={24} />} Process Refund
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </main>
         ) : activeTab === "WAREHOUSES" ? (
           <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/50 dark:bg-black">
             <header className="p-16 pb-10 flex justify-between items-end">
@@ -593,6 +838,15 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setAdjData({ ...adjData, warehouseId: selectedWarehouse?.id });
+                    setShowAdjModal(true);
+                  }}
+                  className="px-8 py-4 bg-black dark:bg-white text-white dark:text-black rounded-2xl font-black flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-xl"
+                >
+                  <Wrench size={20} /> Adjust
+                </button>
                 <div className="bg-white dark:bg-zinc-900 px-8 py-4 rounded-[2rem] border border-zinc-100 dark:border-zinc-800 flex flex-col items-end">
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Warehouse Health</span>
                   <span className="text-xl font-black text-emerald-500">OPTIMAL</span>
@@ -693,6 +947,75 @@ export default function Home() {
               />
             </div>
           </main>
+        )}
+        {showAdjModal && (
+          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-10 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[3rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 animate-in zoom-in-95 duration-300">
+              <div className="p-12 pb-8 flex justify-between items-start">
+                <div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white mb-2">Manual Adjustment</h2>
+                  <p className="text-zinc-400 font-medium tracking-tight">Correct stock levels manually</p>
+                </div>
+                <button onClick={() => setShowAdjModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+
+              <div className="p-12 pt-0 space-y-8">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest px-1">Select Item</label>
+                  <select
+                    value={adjData.itemId}
+                    onChange={(e) => setAdjData({ ...adjData, itemId: e.target.value })}
+                    className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl shadow-inner font-bold dark:text-white outline-none focus:ring-4 ring-black/5"
+                  >
+                    <option value="">Choose an item...</option>
+                    {items.map(i => <option key={i.id} value={i.id}>{i.name} ({i.code})</option>)}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest px-1">Quantity</label>
+                    <input
+                      type="number"
+                      value={adjData.quantity}
+                      onChange={(e) => setAdjData({ ...adjData, quantity: parseFloat(e.target.value) })}
+                      className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl shadow-inner font-bold dark:text-white outline-none focus:ring-4 ring-black/5"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest px-1">Type</label>
+                    <select
+                      value={adjData.type}
+                      onChange={(e) => setAdjData({ ...adjData, type: e.target.value })}
+                      className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl shadow-inner font-bold dark:text-white outline-none focus:ring-4 ring-black/5"
+                    >
+                      <option value="OUT">Stock OUT (Wastage/Damage)</option>
+                      <option value="IN">Stock IN (Correction/Return)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest px-1">Reason / Note</label>
+                  <input
+                    value={adjData.reason}
+                    onChange={(e) => setAdjData({ ...adjData, reason: e.target.value })}
+                    className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl shadow-inner font-bold dark:text-white outline-none focus:ring-4 ring-black/5"
+                    placeholder="e.g. Broken packaging, Found under shelf"
+                  />
+                </div>
+
+                <button
+                  onClick={submitAdjustment}
+                  disabled={loading}
+                  className="w-full py-6 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-3 mt-4"
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <CheckCircle2 size={24} />} Apply Adjustment
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
