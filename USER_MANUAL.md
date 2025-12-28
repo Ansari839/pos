@@ -1,79 +1,90 @@
-# POS Core - User Manual & Workflow Guide
+# 📋 POS System - End-to-End User Manual
 
-## 1. Getting Started
-
-### Accessing the Application
-- **URL**: [http://localhost:3000](http://localhost:3000)
-- **Login**: Click **"Have an account? Login"** on the landing page.
-- **Credentials**:
-  - **Email**: `admin@poscore.com`
-  - **Password**: `admin123`
+Welcome to the comprehensive guide for our Point of Sale (POS) and Inventory Management System. This manual covers every operation from initial login to final reporting.
 
 ---
 
-## 2. Managing Business Days (System Controls)
-**Security Note**: Opening and Closing business days requires secure authorization keys. In this demo environment, you must generate a key first using the API, as the UI for key generation is typically restricted to HQ.
-
-### How to Open/Close a Day
-1. **Check Status**: Look at the "Day Status" indicator in the sidebar.
-2. **Click the Lightning Icon**: This opens the Day Control Modal.
-3. **Enter Key**: You need a valid 8-character key.
-
-### 🛠️ Generating a Key (For Testing)
-Since there is no UI button to generate a key in this version, run this command in your terminal to create one:
-
-```bash
-# Generate a DAY_OPEN key
-curl -X POST http://localhost:3000/api/system/keys \
-  -H "Content-Type: application/json" \
-  -d '{"businessId": "YOUR_BUSINESS_ID", "userId": "YOUR_USER_ID", "operation": "DAY_OPEN"}'
-```
-
-*Tip: You can find your Business ID and User ID in the URL or console logs during development, or simply check the database.*
+## 🚀 1. Getting Started: Login
+The system is protected by a secure login gate.
+1.  Navigate to the home URL (`http://localhost:3000`).
+2.  Enter your **Email** and **Password**.
+3.  Click **Login**.
+    - *Default Admin:* `admin@example.com` / `admin123`
+    - *Note:* If you are a new business, you will be directed to the **Onboarding** page first to set up your business identity and accounts.
 
 ---
 
-## 3. Inventory Management
-
-### Adding a New Product
-1. Navigate to the **Inventory** tab.
-2. Click **"+ New Item"** (Top Right).
-3. **Pop-ups will appear** (Browser Alerts):
-   - **Name**: Enter product name (e.g., "Croissant").
-   - **Type**: OK for Service, Cancel for Product.
-   - **Price**: Enter base price (e.g., "5.00").
-4. The item will appear in the list instantly.
-
-### Adjusting Stock
-1. Go to **Inventory** or **Warehouses**.
-2. Click **"Quick Adjust"** on an item row OR **"Adjust"** button in the header.
-3. Select the Item, Quantity (positive for IN, negative for OUT), and Reason.
-4. Click **Apply Adjustment**.
+## 🏦 2. Business Day Control
+Before performing any sales or inventory operations, you must manage the **Business Day**.
+1.  **Opening the Day:** Click the "OPEN THE DAY" button in the center of the dashboard. This requires authorization (Security Key).
+2.  **Closing the Day:** At the end of your shift, use the "Close Day" option to lock terminal operations and finalize the day-end reporting.
 
 ---
 
-## 4. Point of Sale (POS) Workflow
-
-### Processing a Sale
-1. Navigate to the **Terminal** tab.
-2. **Add Items**: Click items from the grid or use the Search bar to find them.
-3. **Cart**: Items appear in the right-side cart. Adjust quantities with `+` / `-`.
-4. **Checkout**: Click **CHECKOUT** at the bottom.
-5. **Payment**: Select a payment method (Cash, Card, etc.).
-6. **Success**: A confirmation message will appear with the Invoice Number.
-
----
-
-## 5. Returns & Refunds
-1. Navigate to the **Returns** tab.
-2. **Search**: Enter the Invoice Number (found on the receipt or Dashboard).
-   - *Tip: If you don't know one, check the "Recent Sales" on the Dashboard.*
-3. **Select Items**: Choose which items are being returned.
-4. **Process Refund**: Click **Process Refund**. The system will verify tax calculations and update stock automatically.
+## 📦 3. Master Data: Creating Products
+Add your items to the system before selling.
+1.  Navigate to the **Master Data** tab.
+2.  Click the **Add Item** button.
+3.  In the modal:
+    - **Item Name:** e.g., "Vanilla Latte"
+    - **Item Type:** Select **PRODUCT** (tracked inventory) or **SERVICE** (no stock).
+    - **Base Price:** Set the selling price.
+4.  Click **Save Item**.
 
 ---
 
-## 6. Dashboard & Reporting
-- **Overview**: Real-time sales, profit, and stock value.
-- **Charts**: Sales trends and top-performing items.
-- **Financials**: Net profit margins and average ticket size.
+## 📊 4. Inventory: Adjusting Stock
+Ensure your stock levels are accurate.
+1.  Navigate to the **Inventory** or **Warehouses** tab.
+2.  Locate your item in the list.
+3.  Click the **Adjust** button.
+4.  In the modal:
+    - **Quantity:** Enter the amount.
+    - **Adjustment Type:** 
+        - **Stock IN:** For arrivals/purchases.
+        - **Stock OUT:** For breakage/wastage.
+    - **Reason:** Provide a brief note (e.g., "New Shipment").
+5.  Click **Submit**.
+
+---
+
+## 🛒 5. Terminal: Sales & Payments
+The heartbeat of the business—making a sale.
+1.  Navigate to the **Terminal** tab.
+2.  **Search/Scan:** Use the search bar or scan a barcode to find items.
+3.  **Cart Management:** Click an item to add it to the cart. Use `+` or `-` to adjust quantities.
+4.  **Checkout:** Click the large **CHECKOUT** button.
+5.  **Payment Method:** Select **Cash**, **Card**, or **Digital Wallet**.
+6.  **Success:** Once processed, a success message with an Invoice Number will appear.
+
+---
+
+## 💰 6. Accounting & Journal Entries
+Every sale automatically generates accounting entries.
+1.  Navigate to the **Accounting** tab.
+2.  Review the **Journal Entries** to see the double-entry bookkeeping (Debits and Credits) for every transaction.
+3.  View the **Chart of Accounts** to see the current balances of Sales, Cash, and Tax Payable.
+
+---
+
+## 👥 7. Team & Security
+Manage who can access the system.
+1.  Navigate to the **Team** tab.
+2.  **Add Member:** Create new users with specific roles (Admin/Cashier).
+3.  **Security Keys:** Generate and assign keys for critical operations like opening/closing the day or approving adjustments.
+
+---
+
+## 📈 8. Reporting & Analytics
+Monitor your business health.
+1.  Go to the **Overview** (Dashboard).
+2.  View **Sales Trends**, **Best Selling Items**, and **Financial Distribution** charts.
+3.  See real-time stats for Total Revenue, Active Orders, and Today's Growth.
+
+---
+
+## ⚙️ 9. System Settings
+Customize the experience.
+1.  Navigate to the **Settings** tab.
+2.  **Theme:** Switch between Light/Dark mode and choose from 25+ curated color palettes.
+3.  **Business Industry:** Update your business category to match your operational needs.

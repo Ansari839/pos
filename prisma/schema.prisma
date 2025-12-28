@@ -43,6 +43,7 @@ model Business {
   stockAdjustments StockAdjustment[]
   dayControls DayControl[]
   operationKeys OperationKey[]
+  purchases   Purchase[]
 }
 
 model DayControl {
@@ -138,6 +139,7 @@ model User {
   closedDays DayControl[] @relation("DayClosedBy")
   operationKeys OperationKey[]
   approvals     Approval[]
+  purchases     Purchase[]
   
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
@@ -244,6 +246,7 @@ model Item {
   saleItems          SaleItem[]
   saleReturnItems    SaleReturnItem[]
   stockAdjustments   StockAdjustment[]
+  purchaseItems      PurchaseItem[]
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -374,6 +377,7 @@ model Warehouse {
   sessions    PosSession[]
   sales       Sale[]
   stockAdjustments StockAdjustment[]
+  purchases        Purchase[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -528,6 +532,7 @@ model Party {
   
   ledgers    PartyLedger[]
   sales      Sale[]
+  purchases  Purchase[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -634,4 +639,66 @@ model StockAdjustment {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model Purchase {
+  id              String   @id @default(uuid())
+  invoiceNo       String   @unique // Supplier Invoice No
+  referenceNo     String   @unique // Internal Reference
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id])
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  warehouseId     String
+  warehouse       Warehouse @relation(fields: [warehouseId], references: [id])
+  
+  supplierId      String
+  supplier        Party    @relation(fields: [supplierId], references: [id])
+  
+  subtotal        Decimal  @db.Decimal(18, 4)
+  taxTotal        Decimal  @db.Decimal(18, 4)
+  discountTotal   Decimal  @db.Decimal(18, 4)
+  total           Decimal  @db.Decimal(18, 4)
+  
+  status          String   @default("COMPLETED") // COMPLETED | CANCELLED | DRAFT
+  
+  items           PurchaseItem[]
+  payments        PurchasePayment[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PurchaseItem {
+  id              String   @id @default(uuid())
+  purchaseId      String
+  purchase        Purchase @relation(fields: [purchaseId], references: [id])
+  
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  
+  quantity        Decimal  @db.Decimal(18, 4)
+  unitId          String
+  
+  unitPrice       Decimal  @db.Decimal(18, 4) // Purchase Cost
+  taxAmount       Decimal  @db.Decimal(18, 4)
+  discountAmount  Decimal  @db.Decimal(18, 4)
+  total           Decimal  @db.Decimal(18, 4)
+  
+  batchNo         String?
+  expiryDate      DateTime?
+}
+
+model PurchasePayment {
+  id              String   @id @default(uuid())
+  purchaseId      String
+  purchase        Purchase @relation(fields: [purchaseId], references: [id])
+  
+  method          String   // CASH | CARD | BANK | CREDIT
+  amount          Decimal  @db.Decimal(18, 4)
+  referenceNo     String?
+  
+  createdAt       DateTime @default(now())
 }
