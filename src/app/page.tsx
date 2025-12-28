@@ -39,6 +39,8 @@ import { twMerge } from "tailwind-merge";
 import { useBusinessConfig } from "@/hooks/use-business-config";
 import Decimal from "decimal.js";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "@/contexts/theme-context";
+import { useUI, IndustryType } from "@/contexts/ui-context";
 import {
   SalesTrendChart,
   TopItemsChart,
@@ -50,7 +52,9 @@ import {
   Target,
   Zap,
   CreditCard,
-  DollarSign
+  DollarSign,
+  Palette,
+  Check
 } from "lucide-react";
 
 // Utility for tailwind classes
@@ -75,8 +79,10 @@ const THEME_COLORS: Record<string, string> = {
 };
 
 export default function Home() {
+  const { themeColor, setThemeColor, isDark, toggleDark } = useTheme();
+  const { industry, icons, getMenuItems } = useUI();
   const [step, setStep] = useState<"SELECT_INDUSTRY" | "ONBOARDING" | "DASHBOARD">("SELECT_INDUSTRY");
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "INVENTORY" | "WAREHOUSES" | "TERMINAL" | "ACCOUNTING" | "RETURNS">("OVERVIEW");
+  const [activeTab, setActiveTab] = useState<string>("OVERVIEW");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [journals, setJournals] = useState<any[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
@@ -149,6 +155,12 @@ export default function Home() {
         .then(data => setJournals(data));
     }
   }, [businessData, activeTab]);
+
+  useEffect(() => {
+    if (businessData?.business?.industry?.name) {
+      setIndustry(businessData.business.industry.name.toUpperCase() as IndustryType);
+    }
+  }, [businessData?.business?.industry?.name, setIndustry]);
 
   const searchSale = async () => {
     if (!returnSearch) return;
@@ -296,7 +308,10 @@ export default function Home() {
       const res = await fetch("/api/industries");
       const inds = await res.json();
       const restaurant = inds.find((i: any) => i.name === "Restaurant");
-      setSelectedIndustry(restaurant);
+      if (restaurant) {
+        setSelectedIndustry(restaurant);
+        setIndustry("RESTAURANT");
+      }
       alert("Please onboard as 'Test Coffee Shop' to see pre-populated data.");
       setStep("ONBOARDING");
     } finally {
@@ -388,6 +403,7 @@ export default function Home() {
                 key={ind.id}
                 onClick={() => {
                   setSelectedIndustry(ind);
+                  setIndustry(ind.name.toUpperCase() as IndustryType);
                   setStep("ONBOARDING");
                 }}
                 style={{ animationDelay: `${i * 100}ms` }}
@@ -463,27 +479,33 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-white dark:bg-black p-0 flex font-sans selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black">
         {/* Sidebar */}
-        <aside className="w-80 border-r border-zinc-100 dark:border-zinc-900 h-screen p-10 hidden lg:flex flex-col bg-zinc-50/30 dark:bg-zinc-900/10">
+        <aside className="w-80 border-r border-zinc-100 dark:border-zinc-900 h-screen p-10 hidden lg:flex flex-col bg-zinc-50/30 dark:bg-zinc-900/10 transition-colors">
           <div className="mb-14 flex items-center gap-4">
-            <div className={cn("p-2.5 rounded-xl shadow-lg", THEME_COLORS[selectedIndustry.defaultTheme] || THEME_COLORS.blue)}>
-              <Box size={24} />
+            <div className="p-2.5 rounded-xl shadow-lg bg-primary text-primary-foreground transition-all duration-500">
+              {icons.main && React.createElement(icons.main, { size: 24 })}
             </div>
             <span className="font-extrabold text-2xl tracking-tighter dark:text-white">POS<span className="text-zinc-300">CORE</span></span>
           </div>
 
           <nav className="space-y-3 flex-grow">
-            <NavItem icon={LayoutDashboard} label="Overview" active={activeTab === "OVERVIEW"} onClick={() => setActiveTab("OVERVIEW")} />
-            {isFeatureEnabled("INVENTORY") && <NavItem icon={Boxes} label="Master Data" active={activeTab === "INVENTORY"} onClick={() => setActiveTab("INVENTORY")} />}
-            {isFeatureEnabled("INVENTORY") && <NavItem icon={Warehouse} label="Inventory" active={activeTab === "WAREHOUSES"} onClick={() => setActiveTab("WAREHOUSES")} />}
-            {isFeatureEnabled("POS_BASIC") && <NavItem icon={Monitor} label="Terminal" active={activeTab === "TERMINAL"} onClick={() => setActiveTab("TERMINAL")} />}
-            {isFeatureEnabled("POS_BASIC") && <NavItem icon={Undo2} label="Returns" active={activeTab === "RETURNS"} onClick={() => setActiveTab("RETURNS")} />}
-            <NavItem icon={Calculator} label="Accounting" active={activeTab === "ACCOUNTING"} onClick={() => setActiveTab("ACCOUNTING")} />
-            {isFeatureEnabled("TABLE_MANAGEMENT") && <NavItem icon={Utensils} label="Floor Map" />}
-            <NavItem icon={UsersIcon} label="Staff & Roles" />
+            {getMenuItems(config?.features || {}).map((item) => (
+              <NavItem
+                key={item.route}
+                icon={item.icon}
+                label={item.title}
+                active={activeTab === item.route}
+                onClick={() => setActiveTab(item.route)}
+              />
+            ))}
           </nav>
 
           <div className="mt-auto pt-10">
-            <NavItem icon={Settings} label="System Settings" />
+            <NavItem
+              icon={Settings}
+              label="System Settings"
+              active={activeTab === "SETTINGS"}
+              onClick={() => setActiveTab("SETTINGS")}
+            />
           </div>
         </aside>
 
@@ -1015,6 +1037,80 @@ export default function Home() {
               </div>
             </div>
           </main>
+        ) : activeTab === "SETTINGS" ? (
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700">
+            <header className="p-16 pb-10 flex justify-between items-center bg-white dark:bg-zinc-900/50 backdrop-blur-xl border-b border-zinc-100 dark:border-zinc-800/50">
+              <div>
+                <h1 className="text-5xl font-black tracking-tighter dark:text-white mb-2">System Config</h1>
+                <p className="text-zinc-400 font-medium tracking-tight">Manage the pulse and aesthetics of your POS</p>
+              </div>
+            </header>
+
+            <div className="p-16 pt-10 flex-grow overflow-y-auto space-y-12">
+              <section className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-12 rounded-[3.5rem] shadow-2xl">
+                <div className="flex items-center gap-6 mb-10">
+                  <div className="p-4 bg-primary text-primary-foreground rounded-2xl">
+                    <Palette size={32} />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tighter dark:text-white">Brand & Visuals</h2>
+                    <p className="text-zinc-400 font-medium">Select a color palette that matches your brand identity</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-6 gap-6">
+                  {["zinc", "slate", "rose", "orange", "green", "emerald", "teal", "sky", "blue", "indigo", "violet", "purple"].map((color) => {
+                    const colorMap: Record<string, string> = {
+                      rose: '#e11d48', orange: '#f97316', green: '#22c55e', emerald: '#10b981',
+                      teal: '#14b8a6', sky: '#0ea5e9', blue: '#3b82f6', indigo: '#6366f1',
+                      violet: '#8b5cf6', purple: '#a855f7', pink: '#ec4899', slate: '#475569', zinc: '#3f3f46'
+                    };
+                    return (
+                      <button
+                        key={color}
+                        onClick={() => setThemeColor(color as any)}
+                        className={cn(
+                          "group relative aspect-square rounded-3xl border-4 flex items-center justify-center transition-all hover:scale-105",
+                          themeColor === color ? "border-primary shadow-xl" : "border-transparent bg-zinc-50 dark:bg-zinc-950"
+                        )}
+                      >
+                        <div className="w-12 h-12 rounded-full shadow-lg" style={{ backgroundColor: colorMap[color] }} />
+                        {themeColor === color && (
+                          <div className="absolute top-2 right-2 bg-primary text-primary-foreground p-1 rounded-full shadow-md">
+                            <Check size={12} />
+                          </div>
+                        )}
+                        <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-widest text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity">{color}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="grid grid-cols-2 gap-10">
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-10 rounded-[3rem] shadow-xl">
+                  <h3 className="text-xl font-bold dark:text-white mb-6">Display Mode</h3>
+                  <button
+                    onClick={toggleDark}
+                    className="flex items-center gap-4 w-full p-6 bg-zinc-50 dark:bg-zinc-950 rounded-2xl hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all font-bold group"
+                  >
+                    <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform">
+                      {isDark ? icons.terminal && React.createElement(icons.terminal) : icons.dashboard && React.createElement(icons.dashboard)}
+                    </div>
+                    {isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                  </button>
+                </div>
+
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-10 rounded-[3rem] shadow-xl flex flex-col justify-center">
+                  <h3 className="text-xl font-bold dark:text-white mb-6">Business Industry</h3>
+                  <div className="flex items-center gap-4 p-6 bg-primary/5 text-primary rounded-2xl font-black uppercase tracking-[0.2em] text-sm">
+                    {icons.main && React.createElement(icons.main, { size: 24 })}
+                    {industry} LOGIC ACTIVE
+                  </div>
+                </div>
+              </section>
+            </div>
+          </main>
         ) : (
           <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700">
             <header className="p-16 pb-10 flex justify-between items-center border-b border-zinc-100 dark:border-zinc-900">
@@ -1131,7 +1227,7 @@ function NavItem({ icon: Icon, label, active = false, onClick }: { icon: any, la
       className={cn(
         "flex items-center gap-4 px-6 py-4 rounded-2xl cursor-pointer transition-all mb-1",
         active
-          ? "bg-black text-white dark:bg-white dark:text-black font-bold shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_40px_-10px_rgba(255,255,255,0.1)] translate-x-1"
+          ? "bg-primary text-primary-foreground font-bold shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_40px_-10px_rgba(255,255,255,0.1)] translate-x-1"
           : "text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-900/50"
       )}>
       <Icon size={22} strokeWidth={active ? 2.5 : 2} />
