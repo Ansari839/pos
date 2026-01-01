@@ -1,90 +1,151 @@
-# 📋 POS System - End-to-End User Manual
+# 📋 POS System - Production User Manual
 
-Welcome to the comprehensive guide for our Point of Sale (POS) and Inventory Management System. This manual covers every operation from initial login to final reporting.
-
----
-
-## 🚀 1. Getting Started: Login
-The system is protected by a secure login gate.
-1.  Navigate to the home URL (`http://localhost:3000`).
-2.  Enter your **Email** and **Password**.
-3.  Click **Login**.
-    - *Default Admin:* `admin@example.com` / `admin123`
-    - *Note:* If you are a new business, you will be directed to the **Onboarding** page first to set up your business identity and accounts.
+Welcome to the comprehensive guide for our Point of Sale (POS) and Inventory Management System. This manual is designed to help you master every aspect of your business operations.
 
 ---
 
-## 🏦 2. Business Day Control
-Before performing any sales or inventory operations, you must manage the **Business Day**.
-1.  **Opening the Day:** Click the "OPEN THE DAY" button in the center of the dashboard. This requires authorization (Security Key).
-2.  **Closing the Day:** At the end of your shift, use the "Close Day" option to lock terminal operations and finalize the day-end reporting.
+## 🏗️ 1. Core Concepts & Lifecycle
+
+The system operates on a structured lifecycle to ensure data integrity and financial accuracy.
+
+### Business Day Lifecycle
+```mermaid
+graph LR
+    A[Closed] -->|Open the Day| B[Active]
+    B -->|Process Sales| B
+    B -->|Inventory Checks| B
+    B -->|Close the Day| C[Report Finalized]
+    C -->|Next Morning| A
+```
+
+> [!IMPORTANT]
+> The **Business Day** must be **OPEN** before the system allows any Terminal sales or high-impact inventory movements.
 
 ---
 
-## 📦 3. Master Data: Creating Products
-Add your items to the system before selling.
-1.  Navigate to the **Master Data** tab.
-2.  Click the **Add Item** button.
-3.  In the modal:
-    - **Item Name:** e.g., "Vanilla Latte"
-    - **Item Type:** Select **PRODUCT** (tracked inventory) or **SERVICE** (no stock).
-    - **Base Price:** Set the selling price.
-4.  Click **Save Item**.
+## 🚀 2. Getting Started: Onboarding & Login
+
+### First-Time Setup (Onboarding)
+If you are a new business owner:
+1.  **Select Industry**: Choose the template that best matches your business (e.g., Restaurant, Retail, Pharmacy). This sets up your default icons and modules.
+2.  **Define Identity**: Enter your Business Name and Admin credentials.
+3.  **Automatic Provisioning**: The system will automatically create your **Main Warehouse** and your **Chart of Accounts**.
+
+### Secure Login
+- **URL**: `http://localhost:3000`
+- **Credentials**: Use your email and the secure password created during onboarding.
+- **Roles**: Your interface will dynamically change based on your role (Admin, Manager, or Cashier).
 
 ---
 
-## 📊 4. Inventory: Adjusting Stock
-Ensure your stock levels are accurate.
-1.  Navigate to the **Inventory** or **Warehouses** tab.
-2.  Locate your item in the list.
-3.  Click the **Adjust** button.
-4.  In the modal:
-    - **Quantity:** Enter the amount.
-    - **Adjustment Type:** 
-        - **Stock IN:** For arrivals/purchases.
-        - **Stock OUT:** For breakage/wastage.
-    - **Reason:** Provide a brief note (e.g., "New Shipment").
-5.  Click **Submit**.
+## 🏦 3. Business Day Control
+
+### Opening the Day
+- **What**: Signals that the store is ready for business.
+- **How**: Click **"OPEN THE DAY"** on the dashboard.
+- **Security**: Requires an **Operation Key**. If you are a cashier, ask your manager for a key.
+
+### Closing the Day
+- **What**: Locks the terminal and finalizes financial records for the day.
+- **How**: Click **"Close Day"** in the sidebar.
+- **Why**: Ensures that no unauthorized sales happen after hours and triggers the final journal synchronization.
 
 ---
 
-## 🛒 5. Terminal: Sales & Payments
-The heartbeat of the business—making a sale.
-1.  Navigate to the **Terminal** tab.
-2.  **Search/Scan:** Use the search bar or scan a barcode to find items.
-3.  **Cart Management:** Click an item to add it to the cart. Use `+` or `-` to adjust quantities.
-4.  **Checkout:** Click the large **CHECKOUT** button.
-5.  **Payment Method:** Select **Cash**, **Card**, or **Digital Wallet**.
-6.  **Success:** Once processed, a success message with an Invoice Number will appear.
+## 📦 4. Master Data: Catalog Management
+
+### Adding Products
+- **What**: Registering items you want to sell.
+- **How**: Navigate to **Master Data** -> **Add Item**.
+- **Fields**:
+    - **Item Type**: Choose **PRODUCT** for physical goods (stock tracked) or **SERVICE** for labor (no stock).
+    - **Base Price**: The price shown to the customer.
+    - **Cost Price**: Your purchase price (used for profit calculation).
+
+> [!TIP]
+> Use high-quality barcodes/SKUs in the **Code** field to enable lightning-fast lookups in the Terminal.
 
 ---
 
-## 💰 6. Accounting & Journal Entries
-Every sale automatically generates accounting entries.
-1.  Navigate to the **Accounting** tab.
-2.  Review the **Journal Entries** to see the double-entry bookkeeping (Debits and Credits) for every transaction.
-3.  View the **Chart of Accounts** to see the current balances of Sales, Cash, and Tax Payable.
+## 📊 5. Inventory: Warehouse Operations
+
+### Stock Adjustments
+- **What**: Manually correcting stock levels due to breakage, theft, or donation.
+- **How**: 
+    1. Go to **Inventory**.
+    2. Click **Adjust** on a specific item.
+    3. Select **Stock IN** (add) or **Stock OUT** (remove).
+    4. **Reason**: Always provide a clear reason for audit purposes.
+
+### Batch & Expiry (Industry Specific)
+For **Pharmacy** or **Food** industries:
+- Each "Stock IN" movement tracks the **Batch Number** and **Expiry Date**.
+- The system will alert you when items are nearing expiration.
 
 ---
 
-## 👥 7. Team & Security
-Manage who can access the system.
-1.  Navigate to the **Team** tab.
-2.  **Add Member:** Create new users with specific roles (Admin/Cashier).
-3.  **Security Keys:** Generate and assign keys for critical operations like opening/closing the day or approving adjustments.
+## 🛒 6. Terminal: The Pulse of Sales
+
+### Making a Sale
+- **What**: The primary interface for your cashiers.
+- **How**:
+    1. **Search**: Type name or scan barcode.
+    2. **Cart**: Adjust quantities inside the cart sidebar.
+    3. **Checkout**: Click the large button to choose a payment method.
+- **Payments**: Supports **Cash**, **Card**, and **Digital Wallets**.
+
+### Returns & Refunds
+- **What**: Handing back money to customers for returned goods.
+- **How**: 
+    1. Navigate to the **Returns** tab inside the Terminal.
+    2. Search by **Invoice Number**.
+    3. Select items and process the refund.
+- **System Action**: Stock is automatically moved back into the warehouse and journal entries are reversed.
 
 ---
 
-## 📈 8. Reporting & Analytics
-Monitor your business health.
-1.  Go to the **Overview** (Dashboard).
-2.  View **Sales Trends**, **Best Selling Items**, and **Financial Distribution** charts.
-3.  See real-time stats for Total Revenue, Active Orders, and Today's Growth.
+## 💰 7. Accounting & Financial Integrity
+
+Every action you take (Sale, Purchase, Return) is recorded in your **General Ledger**.
+- **Journal Entries**: A list of every debit and credit transaction.
+- **Chart of Accounts**: A summary of your "Cash on Hand", "Sales Revenue", and "Tax Payable".
+
+> [!NOTE]
+> All accounting is **automated**. You don't need to be an accountant to use this system, but your accountant will love the data it generates.
 
 ---
 
-## ⚙️ 9. System Settings
-Customize the experience.
-1.  Navigate to the **Settings** tab.
-2.  **Theme:** Switch between Light/Dark mode and choose from 25+ curated color palettes.
-3.  **Business Industry:** Update your business category to match your operational needs.
+## 👥 8. Team & Security
+
+### Managing Staff
+- **Add Member**: Create accounts for your cashiers and managers.
+- **Roles**:
+    - **Admin**: Full control over settings and data.
+    - **Cashier**: Restricted to the Terminal and basic product view.
+
+### Security Keys
+For highly sensitive actions (like approving a $500 stock adjustment or opening the day):
+1.  An Admin generates a **Key**.
+2.  The User enters the Key to "Approve" the action.
+3.  The system logs exactly who authorized the action and when.
+
+---
+
+## 📈 9. Reporting & Insights
+
+The **Overview** dashboard provides real-time data:
+- **Sales Trends**: Which hours are your busiest?
+- **Top Items**: What's flying off the shelves?
+- **Financial Health**: Compare your Revenue vs. Costs.
+
+---
+
+## ⚙️ 10. System Settings
+
+### Look & Feel
+- **Theming**: Choose from 25+ curated palettes (e.g., "Midnight", "Forest", "Modern Office").
+- **Dark Mode**: Reduces eye strain for late-night shifts.
+
+---
+
+© 2025 MS Tech Systems. Full-service POS Solutions.

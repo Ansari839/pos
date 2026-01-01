@@ -29,6 +29,7 @@ A premium, end-to-end solution for modern businesses, built with high-performanc
 ## 📖 Quick Links
 
 - 📘 **[End-to-End User Manual](USER_MANUAL.md)** - Detailed guide for all operations.
+- 🚀 **[Technical Workflow Guide](workflow_guide.md)** - Architecture and developer workflows.
 - ⚙️ **[Installation Guide](#setup--installation)** - How to get started locally.
 
 ---

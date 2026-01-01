@@ -41,4 +41,4 @@ npm run dev
 | **Email** | `admin@poscore.com` |
 | **Password** | `admin123` |
 
-> **Note:** The "Deploy POS" option creates a *new* separate business. To access the seeded "Test Coffee Shop" data, you **must** use the Login option.
+> **Note:** The "Deploy POS" option on the onboarding page creates a *new* separate business entity. To access the pre-populated "Test Coffee Shop" data and existing products, you **must** use the **Login** option with the credentials provided above.
