@@ -102,6 +102,12 @@ For **Pharmacy** or **Food** industries:
     3. Select items and process the refund.
 - **System Action**: Stock is automatically moved back into the warehouse and journal entries are reversed.
 
+### Managing Suppliers & Customers (Parties)
+- **What**: Keep a database of your vendors and clients.
+- **How**: 
+    - In the **Accounting** tab, click **Manage Parties**.
+    - Or, directly inside the **Purchase** modal, click **+ Add New** next to the Supplier dropdown.
+
 ---
 
 ## 💰 7. Accounting & Financial Integrity
@@ -109,6 +115,7 @@ For **Pharmacy** or **Food** industries:
 Every action you take (Sale, Purchase, Return) is recorded in your **General Ledger**.
 - **Journal Entries**: A list of every debit and credit transaction.
 - **Chart of Accounts**: A summary of your "Cash on Hand", "Sales Revenue", and "Tax Payable".
+- **Account Management**: Click **"New Account"** in the Accounting tab to add new ledger heads (e.g., "Advertising Expense", "Office Rent").
 
 > [!NOTE]
 > All accounting is **automated**. You don't need to be an accountant to use this system, but your accountant will love the data it generates.

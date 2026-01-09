@@ -50,8 +50,33 @@ export function Terminal({ businessId, userId, warehouseId, items }: { businessI
     const [isProcessing, setIsProcessing] = useState(false);
     const [showPayment, setShowPayment] = useState(false);
     const [lastSale, setLastSale] = useState<any>(null);
+    const [stockMap, setStockMap] = useState<Record<string, number>>({});
+    const [loadingStock, setLoadingStock] = useState(false);
 
     const { getRule } = useBusinessConfig(businessId);
+
+    useEffect(() => {
+        if (warehouseId) fetchStock();
+    }, [warehouseId]);
+
+    const fetchStock = async () => {
+        setLoadingStock(true);
+        try {
+            const res = await fetch(`/api/stock?warehouseId=${warehouseId}`);
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                const map: Record<string, number> = {};
+                data.forEach((s: any) => {
+                    map[s.itemId] = parseFloat(s.quantityBaseUnit);
+                });
+                setStockMap(map);
+            }
+        } catch (err) {
+            console.error("Failed to fetch stock", err);
+        } finally {
+            setLoadingStock(false);
+        }
+    };
 
     // Scanner integration
     useBarcodeScanner({
@@ -69,19 +94,38 @@ export function Terminal({ businessId, userId, warehouseId, items }: { businessI
     }, [items, searchQuery]);
 
     const addToCart = (item: Item) => {
+        const available = stockMap[item.id] || 0;
+        if (item.trackStock && available <= 0) {
+            alert("This item is out of stock!");
+            return;
+        }
+
         setCart(prev => {
             const existing = prev.find(i => i.id === item.id);
             if (existing) {
+                if (item.trackStock && existing.quantity + 1 > available) {
+                    alert("Not enough stock available!");
+                    return prev;
+                }
                 return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
             }
             return [...prev, { ...item, quantity: 1, discount: 0 }];
         });
     };
 
+    const removeFromCart = (id: string) => {
+        setCart(prev => prev.filter(i => i.id !== id));
+    };
+
     const updateQty = (id: string, delta: number) => {
         setCart(prev => prev.map(i => {
             if (i.id === id) {
+                const available = stockMap[i.id] || 0;
                 const newQty = Math.max(0.1, i.quantity + delta);
+                if (i.trackStock && newQty > available && delta > 0) {
+                    alert("Not enough stock available!");
+                    return i;
+                }
                 return { ...i, quantity: newQty };
             }
             return i;
@@ -173,19 +217,42 @@ export function Terminal({ businessId, userId, warehouseId, items }: { businessI
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 overflow-y-auto">
-                    {filteredItems.map(item => (
-                        <button
-                            key={item.id}
-                            onClick={() => addToCart(item)}
-                            className="p-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-[2rem] hover:scale-105 active:scale-95 transition-all text-left group shadow-sm hover:shadow-xl"
-                        >
-                            <div className="w-12 h-12 bg-zinc-50 dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-300 mb-4 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black transition-all">
-                                {item.type === 'SERVICE' ? <Tag size={20} /> : <Package size={20} />}
-                            </div>
-                            <div className="font-bold text-lg dark:text-white mb-1 line-clamp-1">{item.name}</div>
-                            <div className="text-xl font-black text-black dark:text-white">${parseFloat(item.basePrice).toFixed(2)}</div>
-                        </button>
-                    ))}
+                    {filteredItems.map(item => {
+                        const isOutOfStock = item.trackStock && (stockMap[item.id] || 0) <= 0;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => addToCart(item)}
+                                disabled={isOutOfStock}
+                                className={cn(
+                                    "p-6 border rounded-[2rem] hover:scale-105 active:scale-95 transition-all text-left group shadow-sm hover:shadow-xl relative overflow-hidden",
+                                    isOutOfStock
+                                        ? "bg-zinc-100 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-900 opacity-60 grayscale cursor-not-allowed"
+                                        : "bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800"
+                                )}
+                            >
+                                <div className={cn(
+                                    "w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-all",
+                                    isOutOfStock
+                                        ? "bg-zinc-200 dark:bg-zinc-800 text-zinc-400"
+                                        : "bg-zinc-50 dark:bg-zinc-800 text-zinc-300 group-hover:bg-black dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-black"
+                                )}>
+                                    {item.type === 'SERVICE' ? <Tag size={20} /> : <Package size={20} />}
+                                </div>
+                                <div className="font-bold text-lg dark:text-white mb-1 line-clamp-1">{item.name}</div>
+                                <div className="text-xl font-black text-black dark:text-white">${parseFloat(item.basePrice).toFixed(2)}</div>
+
+                                {item.trackStock && (
+                                    <div className={cn(
+                                        "mt-2 text-[10px] font-black uppercase tracking-widest",
+                                        isOutOfStock ? "text-rose-500" : "text-emerald-500"
+                                    )}>
+                                        {isOutOfStock ? "Out of Stock" : `${stockMap[item.id] || 0} Available`}
+                                    </div>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {lastSale && (
@@ -220,7 +287,7 @@ export function Terminal({ businessId, userId, warehouseId, items }: { businessI
 
                 <div className="flex-grow overflow-y-auto p-8 space-y-4">
                     {cart.map(item => (
-                        <div key={item.id} className="flex gap-4 items-center animate-in slide-in-from-right-2">
+                        <div key={item.id} className="flex gap-4 items-center animate-in slide-in-from-right-2 group/item">
                             <div className="flex-grow">
                                 <div className="font-bold dark:text-white">{item.name}</div>
                                 <div className="text-xs text-zinc-400 font-medium">UNIT: {parseFloat(item.basePrice).toFixed(2)}</div>
@@ -230,8 +297,14 @@ export function Terminal({ businessId, userId, warehouseId, items }: { businessI
                                 <span className="px-3 font-bold min-w-[2.5rem] text-center">{item.quantity}</span>
                                 <button onClick={() => updateQty(item.id, 1)} className="p-1 hover:bg-zinc-50 dark:hover:bg-zinc-700 rounded-lg transition-colors"><Plus size={14} /></button>
                             </div>
-                            <div className="text-right min-w-[80px]">
+                            <div className="text-right min-w-[80px] flex items-center gap-3">
                                 <div className="font-black dark:text-white">${(parseFloat(item.basePrice) * item.quantity).toFixed(2)}</div>
+                                <button
+                                    onClick={() => removeFromCart(item.id)}
+                                    className="p-1.5 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-lg opacity-0 group-hover/item:opacity-100 transition-all hover:scale-110"
+                                >
+                                    <X size={14} />
+                                </button>
                             </div>
                         </div>
                     ))}

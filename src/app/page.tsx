@@ -41,9 +41,12 @@ import {
   CreditCard,
   TrendingDown,
   Target,
-  ShoppingBag
+  ShoppingBag,
+  Printer
 } from "lucide-react";
 import { Terminal } from "@/components/terminal";
+import { BarcodePrintable } from "@/components/barcode-printable";
+import { useReactToPrint } from "react-to-print";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useBusinessConfig } from "@/hooks/use-business-config";
@@ -128,10 +131,35 @@ export default function Home() {
     payments: [{ method: "CASH", amount: 0 }]
   });
 
+  // New CRUD States
+  const [showPartyModal, setShowPartyModal] = useState(false);
+  const [partyForm, setPartyForm] = useState({ name: "", type: "SUPPLIER", email: "", phone: "" });
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [accountForm, setAccountForm] = useState({ name: "", type: "ASSET", code: "" });
+
+  // Inventory Report State
+  const [inventoryReport, setInventoryReport] = useState<any[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [printItem, setPrintItem] = useState<any>(null);
+  const printRef = React.useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    onAfterPrint: () => setPrintItem(null)
+  });
+
+  const triggerPrint = (item: any) => {
+    setPrintItem(item);
+    // Timeout to allow render before printing
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+
   // For Dashboard
   const { config, isFeatureEnabled, getRule, loading: configLoading } = useBusinessConfig(businessData?.business?.id || null);
 
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboardData, isLoading: dashboardLoading, refetch: refetchDashboard } = useQuery({
     queryKey: ['dashboard', businessData?.business?.id],
     queryFn: async () => {
       const res = await fetch(`/api/reports/dashboard?businessId=${businessData.business.id}`);
@@ -221,9 +249,7 @@ export default function Home() {
           else console.error("Invalid purchases data:", data);
         });
 
-      fetch(`/api/parties?businessId=${businessData.business.id}&type=SUPPLIER`)
-        .then(res => res.json())
-        .then(data => setParties(data));
+      fetchParties();
 
       fetch(`/api/items?businessId=${businessData.business.id}`)
         .then(res => res.json())
@@ -234,6 +260,28 @@ export default function Home() {
         .then(data => setWarehouses(data));
     }
   }, [businessData, activeTab]);
+
+  useEffect(() => {
+    if (businessData?.business?.id && activeTab === "INVENTORY") {
+      fetchInventoryReport();
+    }
+  }, [businessData, activeTab]);
+
+  const fetchInventoryReport = () => {
+    setInventoryLoading(true);
+    fetch(`/api/reports/inventory?businessId=${businessData.business.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setInventoryReport(data);
+      })
+      .finally(() => setInventoryLoading(false));
+  };
+
+  const fetchParties = () => {
+    fetch(`/api/parties?businessId=${businessData.business.id}`)
+      .then(res => res.json())
+      .then(data => setParties(data));
+  };
 
   useEffect(() => {
     if (businessData?.business?.industry?.name) {
@@ -432,6 +480,51 @@ export default function Home() {
         setSelectedWarehouse(whs[0]);
       }
       setStep("DASHBOARD");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateParty = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch("/api/parties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...partyForm, businessId: businessData.business.id })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      alert("Party created successfully!");
+      setShowPartyModal(false);
+      fetchParties();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...accountForm, businessId: businessData.business.id })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      alert("Account created successfully!");
+      setShowAccountModal(false);
+      // Refresh accounts
+      fetch(`/api/accounts?businessId=${businessData.business.id}`)
+        .then(res => res.json())
+        .then(data => setAccounts(data));
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -921,21 +1014,27 @@ export default function Home() {
             </div>
           </main>
         ) : activeTab === "INVENTORY" ? (
-          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700">
+          <main className="flex-grow flex flex-col h-screen overflow-hidden animate-in fade-in duration-700 bg-zinc-50/30 dark:bg-black">
             <header className="p-16 pb-10 flex justify-between items-end">
               <div>
-                <h1 className="text-5xl font-extrabold tracking-tighter dark:text-white mb-3">Master Data</h1>
+                <h1 className="text-5xl font-extrabold tracking-tighter dark:text-white mb-3">Inventory & Procurement</h1>
                 <div className="flex items-center gap-6">
-                  <div className="text-zinc-400 font-medium">Manage your universal items catalog</div>
+                  <div className="text-zinc-400 font-medium">Detailed stock analytics and valuation</div>
                   <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-800" />
                   <div className="flex items-center gap-2 text-zinc-300 text-sm font-bold uppercase tracking-widest">
-                    <Box size={14} /> {items.length} Items Total
+                    <Box size={14} /> {inventoryReport.length} Items Stocked
                   </div>
                 </div>
               </div>
               <div className="flex gap-4">
                 <button
-                  onClick={addItem}
+                  onClick={fetchInventoryReport}
+                  className="w-14 h-14 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all shadow-sm"
+                >
+                  <RefreshCw className={cn(inventoryLoading && "animate-spin")} size={24} />
+                </button>
+                <button
+                  onClick={() => setShowItemModal(true)}
                   className="px-10 py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-extrabold text-lg flex items-center gap-3 hover:scale-105 active:scale-95 transition-all shadow-2xl"
                 >
                   <Plus size={24} /> New Item
@@ -943,72 +1042,82 @@ export default function Home() {
               </div>
             </header>
 
-            <div className="px-16 pb-8 flex gap-6">
-              <div className="flex-grow relative">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400" size={20} />
-                <input className="w-full pl-16 pr-8 py-5 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-[1.5rem] outline-none focus:ring-4 ring-black/5 dark:ring-white/5 focus:border-black dark:focus:border-white transition-all text-lg font-medium" placeholder="Search by SKU, Name or Category..." />
-              </div>
-              <button className="px-8 py-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[1.5rem] text-zinc-600 dark:text-zinc-300 flex items-center gap-3 font-bold hover:bg-zinc-50 transition-colors">
-                <Filter size={20} /> Filters
-              </button>
-            </div>
-
             <div className="flex-grow overflow-y-auto px-16 pb-16">
               <div className="bg-white dark:bg-zinc-900 rounded-[3rem] border border-zinc-100 dark:border-zinc-800 overflow-hidden shadow-2xl">
+                <div className="p-10 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+                  <h3 className="text-2xl font-black dark:text-white tracking-tight">Live Stock Valuation</h3>
+                  <div className="px-5 py-2 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-800/50 flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em]">Real-Time Snapshot</span>
+                  </div>
+                </div>
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-zinc-50 dark:bg-zinc-800/20 text-zinc-400 text-[10px] font-bold uppercase tracking-[0.2em] text-left">
-                      <th className="px-10 py-6">Identity & SKU</th>
+                      <th className="px-10 py-6">Item / SKU</th>
                       <th className="px-10 py-6">Classification</th>
-                      <th className="px-10 py-6">Valuation</th>
-                      <th className="px-10 py-6 text-center">Logic Configuration</th>
-                      <th className="px-10 py-6 text-right">Inventory</th>
+                      <th className="px-10 py-6">Warehouse</th>
+                      <th className="px-10 py-6 text-right">Available Qty</th>
+                      <th className="px-10 py-6 text-right">Valuation (Cost)</th>
+                      <th className="px-10 py-6 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800/50">
-                    {items.map(item => (
-                      <tr key={item.id} className="group hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                    {inventoryReport.map(stock => (
+                      <tr key={stock.id} className="group hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors">
                         <td className="px-10 py-8">
                           <div className="flex items-center gap-6">
                             <div className="w-16 h-16 bg-zinc-50 dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-zinc-400 group-hover:scale-110 group-hover:bg-black group-hover:text-white dark:group-hover:bg-white dark:group-hover:text-black transition-all">
-                              {item.type === 'SERVICE' ? <Tag size={24} /> : <Package size={24} />}
+                              <Package size={24} />
                             </div>
                             <div>
-                              <div className="font-extrabold text-xl dark:text-white tracking-tight">{item.name}</div>
-                              <div className="text-xs text-zinc-400 font-mono mt-2 tracking-widest">{item.code}</div>
+                              <div className="font-extrabold text-xl dark:text-white tracking-tight">{stock.itemName}</div>
+                              <div className="text-xs text-zinc-400 font-mono mt-2 tracking-widest uppercase">{stock.itemCode}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-10 py-8">
-                          <div className="flex flex-col gap-2">
-                            <span className={cn("w-fit px-3 py-1 rounded-lg text-[9px] font-black tracking-[0.1em] uppercase", item.type === 'SERVICE' ? "bg-purple-50 text-purple-600 border border-purple-100" : "bg-blue-50 text-blue-600 border border-blue-100")}>
-                              {item.type}
-                            </span>
-                            <div className="text-sm font-medium text-zinc-500">{item.category?.name || 'General'}</div>
-                          </div>
+                          <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest border border-zinc-200 dark:border-zinc-700">
+                            {stock.category}
+                          </span>
                         </td>
                         <td className="px-10 py-8">
-                          <div className="font-black text-xl dark:text-white">${parseFloat(item.basePrice).toFixed(2)}</div>
-                          <div className="text-xs text-emerald-500 font-bold mt-1">{item.tax?.name || 'Tax Exempt'}</div>
-                        </td>
-                        <td className="px-10 py-8">
-                          <div className="flex flex-col gap-3 items-center">
-                            <Badge text="Inventory Logic" active={item.trackStock} />
-                            <Badge text="Batch Controls" active={item.trackBatch} />
+                          <div className="flex items-center gap-2 text-zinc-400 font-bold text-sm uppercase italic">
+                            <Box size={14} /> {stock.warehouse}
                           </div>
                         </td>
                         <td className="px-10 py-8 text-right">
-                          {item.trackStock && (
-                            <button
-                              onClick={() => adjustStock(item.id)}
-                              className="px-4 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-zinc-600 dark:text-zinc-400 text-xs font-bold hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
-                            >
-                              Quick Adjust
-                            </button>
-                          )}
+                          <div className={cn("text-2xl font-black", Number(stock.quantity) <= 5 ? "text-rose-500" : "dark:text-white")}>
+                            {stock.quantity} <span className="text-[10px] text-zinc-400 font-bold uppercase ml-1">{stock.unit}</span>
+                          </div>
                         </td>
+                        <td className="px-10 py-8 text-right">
+                          <div className="font-black text-2xl text-black dark:text-white">${parseFloat(stock.valuation).toFixed(2)}</div>
+                          <div className="text-[10px] text-zinc-400 mt-1 font-bold italic">@ ${parseFloat(stock.costPrice).toFixed(2)} / cost</div>
+                        </td>
+                        <td className="px-10 py-8 text-right">
+                          <button
+                            onClick={() => triggerPrint(stock)}
+                            className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-zinc-500 hover:text-black dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                            title="Print Barcode"
+                          >
+                            <Printer size={20} />
+                          </button>
+                        </td>
+
                       </tr>
                     ))}
+                    {inventoryReport.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-10 py-32 text-center">
+                          <div className="flex flex-col items-center gap-4 text-zinc-300">
+                            <Box size={64} className="opacity-20" />
+                            <div className="font-black text-xl uppercase tracking-widest">No stock records found</div>
+                            <p className="text-sm font-medium">Record a purchase or perform a stock adjustment to see data here.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1527,8 +1636,8 @@ export default function Home() {
                           key={op}
                           onClick={() => setKeyOp(op)}
                           className={`px-4 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all border ${keyOp === op
-                              ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20'
-                              : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800 text-zinc-400 hover:border-rose-200'
+                            ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-500/20'
+                            : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-100 dark:border-zinc-800 text-zinc-400 hover:border-rose-200'
                             }`}
                         >
                           {op.replace('_', ' ')}
@@ -1849,9 +1958,9 @@ export default function Home() {
                     <div>
                       <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Access Role</label>
                       <select name="roleName" className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2">
-                        <option value="ADMIN">Administrator</option>
-                        <option value="CASHIER">Cashier / Staff</option>
-                        <option value="MANAGER">Store Manager</option>
+                        <option value="Admin">Administrator</option>
+                        <option value="Cashier">Cashier / Staff</option>
+                        <option value="Manager">Store Manager</option>
                       </select>
                     </div>
                   </div>
@@ -1890,7 +1999,18 @@ export default function Home() {
               <div className="flex-grow overflow-y-auto p-12 pt-0 space-y-10">
                 <div className="grid grid-cols-3 gap-6">
                   <div className="col-span-1 space-y-3">
-                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Supplier</label>
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Supplier</label>
+                      <button
+                        onClick={() => {
+                          setPartyForm({ name: "", type: "SUPPLIER", email: "", phone: "" });
+                          setShowPartyModal(true);
+                        }}
+                        className="text-[9px] font-black text-primary uppercase hover:underline"
+                      >
+                        + Add New
+                      </button>
+                    </div>
                     <select
                       value={purchaseForm.supplierId}
                       onChange={(e) => setPurchaseForm({ ...purchaseForm, supplierId: e.target.value })}
@@ -2041,6 +2161,149 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {showPartyModal && (
+          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-10 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[4rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 animate-in zoom-in-95 duration-300">
+              <div className="p-16 pb-10 flex justify-between items-start">
+                <div>
+                  <div className="p-4 rounded-3xl w-fit mb-6 bg-primary/10 text-primary">
+                    <UsersIcon size={32} />
+                  </div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white mb-2 uppercase">Create Party</h2>
+                  <p className="text-zinc-400 font-medium tracking-tight">Add a supplier or customer to your database</p>
+                </div>
+                <button onClick={() => setShowPartyModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+              <form onSubmit={handleCreateParty} className="p-16 pt-0 space-y-6">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Party Type</label>
+                      <select
+                        value={partyForm.type}
+                        onChange={(e) => setPartyForm({ ...partyForm, type: e.target.value })}
+                        className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                      >
+                        <option value="SUPPLIER">Supplier</option>
+                        <option value="CUSTOMER">Customer</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Name / Company</label>
+                      <input
+                        value={partyForm.name}
+                        onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })}
+                        required className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Email</label>
+                      <input
+                        type="email"
+                        value={partyForm.email}
+                        onChange={(e) => setPartyForm({ ...partyForm, email: e.target.value })}
+                        className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Phone</label>
+                      <input
+                        value={partyForm.phone}
+                        onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })}
+                        className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-8 mt-8 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-2xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-4"
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <Check size={32} />}
+                  SAVE PARTY
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showAccountModal && (
+          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-10 animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[4rem] overflow-hidden shadow-2xl border border-zinc-100 dark:border-zinc-800 animate-in zoom-in-95 duration-300">
+              <div className="p-16 pb-10 flex justify-between items-start">
+                <div>
+                  <div className="p-4 rounded-3xl w-fit mb-6 bg-primary/10 text-primary">
+                    <BookOpen size={32} />
+                  </div>
+                  <h2 className="text-4xl font-black tracking-tighter dark:text-white mb-2 uppercase">Create Account</h2>
+                  <p className="text-zinc-400 font-medium tracking-tight">Add a new head to your Chart of Accounts</p>
+                </div>
+                <button onClick={() => setShowAccountModal(false)} className="w-12 h-12 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all font-bold">✕</button>
+              </div>
+              <form onSubmit={handleCreateAccount} className="p-16 pt-0 space-y-6">
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Account Name</label>
+                    <input
+                      value={accountForm.name}
+                      onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                      required className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Type</label>
+                      <select
+                        value={accountForm.type}
+                        onChange={(e) => setAccountForm({ ...accountForm, type: e.target.value })}
+                        className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                      >
+                        <option value="ASSET">Asset (Cash, Bank, Inventory)</option>
+                        <option value="LIABILITY">Liability (Debt, Payable)</option>
+                        <option value="INCOME">Income (Sales, Other)</option>
+                        <option value="EXPENSE">Expense (Salary, Rent)</option>
+                        <option value="EQUITY">Equity (Capital)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">Code (Optional)</label>
+                      <input
+                        value={accountForm.code}
+                        onChange={(e) => setAccountForm({ ...accountForm, code: e.target.value })}
+                        className="w-full px-8 py-5 bg-zinc-50 dark:bg-zinc-950 border-none rounded-2xl font-bold dark:text-white outline-none focus:ring-4 ring-primary/10 transition-all mt-2"
+                        placeholder="e.g. 1001"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-8 mt-8 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-2xl hover:scale-[1.02] active:scale-98 transition-all shadow-2xl flex items-center justify-center gap-4"
+                >
+                  {loading ? <RefreshCw className="animate-spin" /> : <Check size={32} />}
+                  SAVE ACCOUNT
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Hidden Print Area */}
+        <div className="hidden">
+          {printItem && (
+            <BarcodePrintable
+              ref={printRef}
+              value={printItem.itemCode || "0000"}
+              name={printItem.itemName}
+              price={parseFloat(printItem.costPrice)}
+            />
+          )}
+        </div>
       </div>
     );
   }
